@@ -356,8 +356,8 @@ int extractValuesFromparams(void)
 
 void extractOneValuefromparams(unsigned char valueIndex)
 {
-  int ind1=0, ind2=0, ind3=0;
-  int value=0;
+  int ind1, ind2, ind3;
+  int value;
 
   //Serial.println(F("extractOneValuefromparams()"));
   //Serial.print(F(" params=")); Serial.println(params);
