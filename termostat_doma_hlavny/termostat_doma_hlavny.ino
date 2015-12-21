@@ -113,10 +113,6 @@ void setup()
   lcd.createChar(1, znak_ohrev_on);
 
   lcd.setCursor(0, 0);
-  lcd.print(F("__FILE__"));
-  lcd.setCursor(0, 1);
-  lcd.print(F("__DATE__"));
-  lcd.setCursor(0, 3);
   lcd.print(F("starting ..."));
 
   loadEEPROM();
