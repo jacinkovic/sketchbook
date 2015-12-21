@@ -1,11 +1,8 @@
 #include <VirtualWire.h>
 #include <avr/wdt.h>
-#include "DHT.h"
 #include <OneWire.h>
 
 const byte sensor_cislo = '1';
-
-unsigned int time;
 
 int DS18S20_Pin = 2;
 OneWire ds_Temp(DS18S20_Pin);
@@ -14,16 +11,13 @@ OneWire ds_Temp(DS18S20_Pin);
 const int tx433MHz_pin = 12;
 byte count433MHz = 1;
 
-const unsigned int tx433MHz_UpdateTimePeriod = 60;  //in sec
-unsigned int tx433MHzUpdateTime;
+const unsigned long tx433MHz_UpdateTimePeriod = 60000;  //in msec
+unsigned long tx433MHzUpdateTime = 0;
 
 int errFlag;
 
-int RoomTemp, RoomHumidity, RoomTempDHT, RoomDHTTempIndex;
+int RoomTemp;
 
-#define DHTPIN 4
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
 
 void setup()
 {
@@ -34,20 +28,17 @@ void setup()
 
   init433MHz();
 
-  dht.begin();
-
   randomSeed(analogRead(0));
 
-  for(int i=0;i<10; i++){ //initialise ds18b20
-    wdt_reset();  
+  for (int i = 0; i < 10; i++) { //initialise ds18b20
+    wdt_reset();
     get_ds_Temp();
   }
 
   Serial.print(F("sensor_cislo = "));
-  Serial.println(sensor_cislo-48);
+  Serial.println(sensor_cislo - 48);
 
   Serial.println(F("loop();"));
-
 }
 
 byte count = 1;
@@ -55,55 +46,33 @@ byte count = 1;
 void loop()
 {
 
-  wdt_reset();  
+  wdt_reset();
 
-  time = (unsigned long)(millis() / 1000);
+  //povodne
+ 
+  if (millis () - tx433MHzUpdateTime > tx433MHz_UpdateTimePeriod)
+  {
+    tx433MHzUpdateTime = millis();
 
-  if(time > tx433MHzUpdateTime){
-    Serial.println(F("Reading:"));
     LED(1);
     errFlag = 0;
 
-    Serial.print(F("DHT:"));
-    float h = dht.readHumidity();
-    float t = dht.readTemperature();
-
-    if (isnan(t) || isnan(h)) {
-      Serial.println(F("Failed to read from DHT"));
-      errFlag = 1;
-    } 
-    else {
-      RoomTempDHT = 10* t;
-      RoomHumidity = 10* h;
-      float hic = dht.computeHeatIndex(t, h, false);
-      RoomDHTTempIndex = 10* hic;
-
-      Serial.print(t);
-      Serial.print(F("C "));
-      Serial.print(h);
-      Serial.println(F("%\t"));
-      Serial.print(hic);
-      Serial.println(F("C heatindex\t"));
-    }
-
     Serial.print(F("DS18B20:"));
     float dsTemp = get_ds_Temp();
-    if(dsTemp == -1000){
-      Serial.println(F("Failed to read from DS18B20"));  
+    if (dsTemp == -1000) {
+      Serial.println(F("Failed to read from DS18B20"));
       errFlag = 1;
     }
-    else{
+    else {
       RoomTemp = 10 * dsTemp;
       Serial.print(dsTemp);
       Serial.println(F("C "));
     }
 
-    Serial.println(F("Sending over 433MHz"));
-    for(int i=0; i<1; i++){
+    for (int i = 0; i < 1; i++) {
       tx433MHz();
-      delay(300);
     }
-    tx433MHzUpdateTime = time + tx433MHz_UpdateTimePeriod - random(10);
+
     LED(0);
     Serial.println(F("Sent"));
   }
@@ -122,7 +91,7 @@ void init433MHz(void)
   //vw_set_rx_pin(receive_pin);
   //vw_set_ptt_pin(transmit_en_pin);
   //vw_set_ptt_inverted(true); // Required for DR3100
-  vw_setup(2000);       // Bits per sec  
+  vw_setup(2000);       // Bits per sec
 }
 
 
@@ -131,21 +100,18 @@ void tx433MHz(void)
 {
 
   char msg[12] = {
-    ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' '       };
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '
+  };
 
-  msg[0]='T';
-  msg[1]='H';
-  msg[2]='S';
-  msg[3]= sensor_cislo;
+  msg[0] = 'T';
+  msg[1] = 'H';
+  msg[2] = 'S';
+  msg[3] = sensor_cislo;
 
-  msg[4]= RoomTemp / 10;
-  msg[5]= RoomTemp % 10;
-  msg[6]= RoomHumidity / 10;
-  msg[7]= RoomHumidity % 10;
-  msg[8]= RoomTempDHT / 10;
-  msg[9]= RoomTempDHT % 10;
+  msg[4] = RoomTemp / 10;
+  msg[5] = RoomTemp % 10;
 
-  msg[10]= errFlag; 
+  msg[10] = errFlag;
 
   // replace chr 11 with count (#)
   msg[11] = count433MHz;
@@ -156,11 +122,11 @@ void tx433MHz(void)
 }
 
 
-void LED(int value){
-  const byte led_pin=13;
+void LED(int value) {
+  const byte led_pin = 13;
 
-  if(value>0){
-    value=255;
+  if (value > 0) {
+    value = 255;
   }
   pinMode(led_pin, OUTPUT);
   analogWrite(led_pin, value);
@@ -168,7 +134,7 @@ void LED(int value){
 
 
 
-float get_ds_Temp(){
+float get_ds_Temp() {
   //returns the temperature from one DS18S20 in DEG Celsius
 
   byte data[12];
@@ -212,7 +178,7 @@ float get_ds_Temp(){
   float tempRead = ((MSB << 8) | LSB); //using two's compliment
   float TemperatureSum = tempRead / 16;
 
-  if (data[8] != OneWire::crc8(data,8)) {
+  if (data[8] != OneWire::crc8(data, 8)) {
     Serial.print(F("ERROR: CRC didn't match\n"));
     return -1000;
   }
