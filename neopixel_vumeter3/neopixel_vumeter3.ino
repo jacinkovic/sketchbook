@@ -11,19 +11,19 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_NEOPIXEL, PIN, NEO_GRB + NEO_KHZ
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
-const int analogReadsNum = 10;
+const int analogReadsNum = 10;     //10
 const int topSize = NUM_NEOPIXEL / 8;
 const int mediumSize = NUM_NEOPIXEL / 2 - topSize;
-const long inValDiv = 5; //5
-const long peakSlow  = 1;  //10
-const long baseSlow  = 10;  //1
+const long inValDiv = 5;      //5
+const long peakSlow  = 1;     //10
+const long baseSlow  = 10;    //1
 const int analogInPinL = A7;
 const int analogInPinR = A6;
 
 long Lval, Rval;
 long Lbase = 0, Rbase = 0;
 long Lpeak = 0, Rpeak = 0;
-uint32_t c_basetop, c_basebody, c_peak, c_empty;
+uint32_t c_basetop, c_basebody, c_peak, c_empty, c_emptyPeak;
 int line;
 int t;
 
@@ -54,7 +54,7 @@ void setup() {
 
   line = strip.numPixels() / 2;
 
-//#define CYCLECOLOR
+  //#define CYCLECOLOR
 
   c_basetop = strip.Color( 255, 0, 0);
   //c_basetop = strip.Color( 255, 255, 255);
@@ -65,13 +65,15 @@ void setup() {
   //c_basebody = strip.Color( 0, 0, 255);
   //c_basetop = c_basebody;
   //c_basebody = strip.Color( 0, 255, 0);
-  c_peak = strip.Color( 255, 255, 255);
-  //c_peak = strip.Color( 0, 0, 255);
+  //c_peak = strip.Color( 255, 255, 255);
+  c_peak = strip.Color( 0, 0, 255);
   //c_peak = strip.Color( 255, 0 , 0);
   //c_peak = strip.Color( 255, 255 , 0);
   //c_basetop = c_peak;
   c_empty = strip.Color( 0, 0, 0);
+  c_emptyPeak = strip.Color( 0, 0, 5);
   //c_peak = c_basebody;
+  c_empty = c_emptyPeak;
 
   strip.begin();
   strip.setBrightness(brightness);
@@ -114,7 +116,6 @@ void loop() {
   //Lval = 255;
   //Rval = Lval;
 
-
   Lval = Lval * 10; //no need for floating point, do it by integer
   Rval = Rval * 10;
 
@@ -155,8 +156,6 @@ void loop() {
   if (Rpeak - peakSlow > 0) {
     Rpeak = Rpeak - peakSlow;
   }
-
-
 }
 
 
@@ -172,11 +171,11 @@ void vumeter3( int Lval, int Rval, int Lpeak, int Rpeak)
   Lpeak = Lpeak / 10; //back to real analog value
   Rpeak = Rpeak / 10; //back to real analog value
 
-  for (i = 0; i < line - Lval; i++) {
+  for (i = 0; i < line - Lpeak; i++) {
     strip.setPixelColor(i, c_empty);
   }
 
-  for (i = line + Rval; i < NUM_NEOPIXEL; i++) {
+  for (i = line + Rpeak; i < NUM_NEOPIXEL; i++) {
     strip.setPixelColor(i, c_empty);
   }
 
@@ -201,10 +200,16 @@ void vumeter3( int Lval, int Rval, int Lpeak, int Rpeak)
 
 
   if (Lpeak > 0) {
+    for (i = line - Lpeak - 1; i < line - Lval; i++) {
+      strip.setPixelColor(i, c_emptyPeak);
+    }
     strip.setPixelColor(line - Lpeak - 1, c_peak);
   }
 
   if (Rpeak > 0) {
+    for (i = line + Lval; i < line + Rpeak; i++) {
+      strip.setPixelColor(i, c_emptyPeak);
+    }
     strip.setPixelColor(line + Rpeak, c_peak);
   }
 
