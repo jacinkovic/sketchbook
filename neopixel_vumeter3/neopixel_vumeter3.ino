@@ -11,25 +11,23 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_NEOPIXEL, PIN, NEO_GRB + NEO_KHZ
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
-const int i_step = 2;
 const int analogReadsNum = 10;
 const int topSize = NUM_NEOPIXEL / 8;
 const int mediumSize = NUM_NEOPIXEL / 2 - topSize;
 const long inValDiv = 5; //5
 const long peakSlow  = 1;  //10
 const long baseSlow  = 10;  //1
-long Lval, Rval;
-long Lbase = 0, Rbase = 0;
-long Lpeak = 0, Rpeak = 0;
-
 const int analogInPinL = A7;
 const int analogInPinR = A6;
 
-uint32_t c_basetop, c_basemedium, c_basebody, c_basebottom, c_peak, c_empty;
+long Lval, Rval;
+long Lbase = 0, Rbase = 0;
+long Lpeak = 0, Rpeak = 0;
+uint32_t c_basetop, c_basebody, c_peak, c_empty;
 int line;
+int t;
 
 uint32_t c_pix_def[NUM_NEOPIXEL];
-
 
 class GetColor {
   public:
@@ -44,9 +42,19 @@ class GetColor {
     }
 };
 
+uint32_t GetRandomColor(void) {
+  int r = random(255);
+  int g = random(255 - r);
+  int b = random(255 - r - g);
+  return strip.Color(r, g, b);
+}
+
+
 void setup() {
 
   line = strip.numPixels() / 2;
+
+//#define CYCLECOLOR
 
   c_basetop = strip.Color( 255, 0, 0);
   //c_basetop = strip.Color( 255, 255, 255);
@@ -56,17 +64,15 @@ void setup() {
   //c_basebody = strip.Color( 255, 0, 0);
   //c_basebody = strip.Color( 0, 0, 255);
   //c_basetop = c_basebody;
-  c_basemedium = strip.Color( 255, 255, 0);
   //c_basebody = strip.Color( 0, 255, 0);
-  c_basebottom = c_basebody;
-  //c_basebottom = strip.Color( 255, 255, 0);
-  //c_peak = strip.Color( 255, 255, 255);
-  c_peak = strip.Color( 0, 0, 255);
-  c_peak = strip.Color( 255, 0 , 0);
+  c_peak = strip.Color( 255, 255, 255);
+  //c_peak = strip.Color( 0, 0, 255);
+  //c_peak = strip.Color( 255, 0 , 0);
   //c_peak = strip.Color( 255, 255 , 0);
   //c_basetop = c_peak;
   c_empty = strip.Color( 0, 0, 0);
-  //c_basetop = c_peak;
+  //c_peak = c_basebody;
+
   strip.begin();
   strip.setBrightness(brightness);
   strip.show();
@@ -83,12 +89,17 @@ void setup() {
 
 
 void loop() {
-
-  /*if( (millis() % 100) < 1){
-    c_basebody = strip.Color( random(255), random(255), random(255));
-    c_peak = strip.Color( random(255), random(255), random(255));
-    c_basetop = c_peak;
-    } */
+#ifdef CYCLECOLOR
+  t++;
+  if (t > 100) {
+    c_basebody = GetRandomColor();
+    c_basetop = GetRandomColor();
+    //c_peak = GetRandomColor();
+    c_peak = c_basebody;
+    init_c_pix_def();
+    t = 0;
+  }
+#endif
 
 
   Lval = 0;
@@ -110,6 +121,8 @@ void loop() {
   Lval = Lval / inValDiv;
   Rval = Rval / inValDiv;
 
+  if (Lval > line * 10) Lval = line * 10;
+  if (Rval > line * 10) Rval = line * 10;
 
   if (Lbase < Lval) {
     Lbase = Lval;
@@ -126,9 +139,6 @@ void loop() {
     Rpeak = Rbase;
   }
 
-
-//brightness = 20* (max(Lval, Rval) / line);
-//strip.setBrightness(brightness);
   vumeter3(Lbase, Rbase, Lpeak, Rpeak);
 
 
@@ -191,66 +201,6 @@ void vumeter3( int Lval, int Rval, int Lpeak, int Rpeak)
 
 
   if (Lpeak > 0) {
-    //strip.setPixelColor(line - Lpeak - 1, c_peak);
-    //strip.setPixelColor(line - Lpeak - 1, c_pix_def[line - Lpeak - 1]);
-  }
-
-  if (Rpeak > 0) {
-    //strip.setPixelColor(line + Rpeak, c_peak);
-    //strip.setPixelColor(line + Rpeak, c_pix_def[line + Rpeak]);
-  }
-
-  strip.show();
-
-}
-
-void vumeter2( int Lval, int Rval, int Lpeak, int Rpeak)
-{
-  int i;
-  int tmppos;
-
-  Lval = Lval / 10; //back to real analog value
-  Rval = Rval / 10; //back to real analog value
-  Lpeak = Lpeak / 10; //back to real analog value
-  Rpeak = Rpeak / 10; //back to real analog value
-
-  for (i = 0; i < line + line; i++) {
-    strip.setPixelColor(i, c_empty);
-  }
-
-  for (i = line - Lval; i < line; i++) {
-    strip.setPixelColor(i, c_basebody);
-  }
-
-
-  for (i = line; i < line + Rval; i++) {
-    strip.setPixelColor(i, c_basebody);
-  }
-
-  for (i = 0; i < topSize; i++) {
-    tmppos = line - Lval + i;
-    if (tmppos < line) {
-      strip.setPixelColor(tmppos, c_basetop);
-    }
-    tmppos = line + Rval - i - 1;
-    if (tmppos >= line) {
-      strip.setPixelColor(tmppos, c_basetop);
-    }
-  }
-
-  for (i = topSize; i < mediumSize + topSize; i++) {
-    tmppos = line - Lval + i;
-    if (tmppos < line) {
-      strip.setPixelColor(tmppos, c_basemedium);
-    }
-    tmppos = line + Rval - i - 1;
-    if (tmppos >= line) {
-      strip.setPixelColor(tmppos, c_basemedium);
-    }
-  }
-
-
-  if (Lpeak > 0) {
     strip.setPixelColor(line - Lpeak - 1, c_peak);
   }
 
@@ -262,48 +212,6 @@ void vumeter2( int Lval, int Rval, int Lpeak, int Rpeak)
 
 }
 
-
-
-void vumeter( int Lval, int Rval, int Lpeak, int Rpeak)
-{
-  int i;
-  int tmppos;
-
-  //int b = max(Lval, Rval) / (100 / line);
-  //strip.setBrightness(b);
-
-  Lval = Lval / 10; //back to real analog value
-  Rval = Rval / 10; //back to real analog value
-  Lpeak = Lpeak / 10; //back to real analog value
-  Rpeak = Rpeak / 10; //back to real analog value
-
-
-
-  for (i = 0; i < line + line; i++) {
-    strip.setPixelColor(i, c_empty);
-  }
-
-  for (i = line - Lval; i < line + Rval; i++) {
-    strip.setPixelColor(i, c_pix_def[i]);
-  }
-
-
-
-
-
-  if (Lpeak > 0) {
-    //strip.setPixelColor(line - Lpeak - 1, c_peak);
-    strip.setPixelColor(line - Lpeak - 1, c_pix_def[line - Lpeak - 1]);
-  }
-
-  if (Rpeak > 0) {
-    //strip.setPixelColor(line + Rpeak, c_peak);
-    strip.setPixelColor(line + Rpeak, c_pix_def[line + Rpeak]);
-  }
-
-  strip.show();
-
-}
 
 
 void init_c_pix_def(void) {
