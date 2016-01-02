@@ -1,8 +1,7 @@
-
 #include <Adafruit_NeoPixel.h>
 
 #define PIN 2   //D2
-#define NUM_NEOPIXEL 120
+#define NUM_NEOPIXEL 40  //120 velky   40 maly
 int brightness = 100;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_NEOPIXEL, PIN, NEO_GRB + NEO_KHZ800);
@@ -122,8 +121,8 @@ void loop() {
   Lval = Lval / inValDiv;
   Rval = Rval / inValDiv;
 
-  if (Lval > line * 10) Lval = line * 10;
-  if (Rval > line * 10) Rval = line * 10;
+  //if (Lval > line * 10) Lval = line * 10;
+  //if (Rval > line * 10) Rval = line * 10;
 
   if (Lbase < Lval) {
     Lbase = Lval;
