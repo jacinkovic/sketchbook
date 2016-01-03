@@ -28,7 +28,7 @@ int TempIzba1, TempIzba2;
 int TimeoutIzba1, TimeoutIzba2;
 int TempBase;
 int TempNast;
-int Heating1, Heating2, Heating3;
+int Heating1, Heating2;
 int TempVonku;
 int SaunaTemp;
 int RuryKotolVystup, RuryKotolSpiatocka, RuryBojlerVystup;
@@ -172,7 +172,6 @@ void check433MHz(void) {
         TempNast = convNumSigned(buf[6], buf[7]);
         Heating1 = buf[8];
         Heating2 = buf[9];
-        Heating3 = buf[10];
       }
     }
 
@@ -241,21 +240,19 @@ void checkEth() {
       client.print(Heating1);
       client.print(medzera);
       client.print(Heating2);
-      client.print(medzera);
-      client.print(Heating3);
-      client.print(medzera);
 
-      client.print("debug= ");
-      client.print(TempVonku);
-      client.print(medzera);
-      client.print(SaunaTemp);
-      client.print(medzera);
-      client.print(RuryKotolVystup);
-      client.print(medzera);
-      client.print(RuryKotolSpiatocka);
-      client.print(medzera);
-      client.print(RuryBojlerVystup);
-      client.print(medzera);   
+//      client.print(medzera);
+//      client.print("debug= ");
+//      client.print(TempVonku);
+//      client.print(medzera);
+//      client.print(SaunaTemp);
+//      client.print(medzera);
+//      client.print(RuryKotolVystup);
+//      client.print(medzera);
+//      client.print(RuryKotolSpiatocka);
+//      client.print(medzera);
+//      client.print(RuryBojlerVystup);
+//      client.print(medzera);   
 
     }
     client.stop();

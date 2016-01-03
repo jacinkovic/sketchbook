@@ -232,7 +232,7 @@ void vypisOstatne(void)
       if (SaunaTemp == -444) {
         lcd.print(F(" vyp "));
       } else {
-      vypisLcdTempInt(SaunaTemp);
+        vypisLcdTempInt(SaunaTemp);
       }
     }
   }
@@ -427,13 +427,13 @@ void check433MHz(void) {
       if (buf[3] == '1') {
         rx433MHzAgainIzba1 = millis();
         TempIzba1 = convNumSigned(buf[4], buf[5]);
-                                  TimeoutIzba1 = buf[11];
+        TimeoutIzba1 = buf[11];
       }
 
       if (buf[3] == '2') {
         rx433MHzAgainIzba2 = millis();
         TempIzba2 = convNumSigned(buf[4], buf[5]);
-                                  TimeoutIzba2 = buf[11];
+        TimeoutIzba2 = buf[11];
       }
     }
 
@@ -444,25 +444,25 @@ void check433MHz(void) {
       if (buf[3] == '1') {
         rx433MHzAgainVonku = millis();
         TempVonku = convNumSigned(buf[4], buf[5]);
-                                  TimeoutVonku = buf[10];
+        TimeoutVonku = buf[10];
       }
 
       if (buf[3] == '2') {
         rx433MHzAgainSauna = millis();
         SaunaTemp = convNumSigned(buf[4], buf[5]);
-                                  TimeoutSauna = buf[10];
+        TimeoutSauna = buf[10];
       }
 
       if (buf[3] == '3') {
         rx433MHzAgainRury = millis();
         RuryKotolVystup = convNumSigned(buf[4], buf[5]);
-                                        RuryKotolSpiatocka = convNumSigned(buf[6], buf[7]);
-                                            RuryBojlerVystup = convNumSigned(buf[8], buf[9]);
-                                                TimeoutRury = buf[10];
+        RuryKotolSpiatocka = convNumSigned(buf[6], buf[7]);
+        RuryBojlerVystup = convNumSigned(buf[8], buf[9]);
+        TimeoutRury = buf[10];
       }
     }
 
-                                        led(LED_OFF);
+    led(LED_OFF);
 
   }
 
@@ -780,7 +780,7 @@ void tx433MHzPacket(unsigned int packetNum)
     msg[6] = TempNast / 10;
     msg[7] = TempNast % 10;
     msg[8] = KotolStatus;
-    msg[9] = CerpadloStatus;
+    msg[9] = CerpadloStatus;  
   }
 
   vw_send((uint8_t *)msg, buflen_433MHz);
