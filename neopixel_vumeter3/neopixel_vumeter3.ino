@@ -1,7 +1,7 @@
 #include <Adafruit_NeoPixel.h>
 
 #define PIN 2   //D2
-#define NUM_NEOPIXEL 40  //120 velky   40 maly
+#define NUM_NEOPIXEL 120  //120 velky   40 maly
 int brightness = 100;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_NEOPIXEL, PIN, NEO_GRB + NEO_KHZ800);

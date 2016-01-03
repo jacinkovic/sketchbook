@@ -9,8 +9,8 @@
 
 #include <EEPROM.h>
 
-const byte LED_on = 255;
-const byte LED_off = 0;
+#define LED_ON  255
+#define LED_OFF 0
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
@@ -62,7 +62,7 @@ int TimeoutIzba2;
 int TempBase;
 int TempNast;
 int TempVonku, TimeoutVonku;
-int SaunaTemp, SaunaNast, SaunaOhrev, TimeoutSauna;
+int SaunaTemp, TimeoutSauna;
 int RuryKotolVystup, RuryKotolSpiatocka, RuryBojlerVystup, TimeoutRury;
 
 
@@ -223,46 +223,26 @@ void vypisOstatne(void)
     vypisLcdNodata();
   }
 
-  long ii = millis() / (lcdUpdateTime_Period  * 2);
-  ii = ii % 2;
 
-  switch (ii) {
-    case 0:
-
-
-      lcd.setCursor(7, 3);
-      if (millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout) {
-        if (TimeoutSauna == 1) {
-          vypisLcdNodata2();
-        } else {
-          vypisLcdTempInt(SaunaTemp);
-        }
+  lcd.setCursor(7, 3);
+  if (millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout) {
+    if (TimeoutSauna == 1) {
+      vypisLcdNodata2();
+    } else {
+      if (SaunaTemp == -444) {
+        lcd.print(F(" vyp "));
+      } else {
+      vypisLcdTempInt(SaunaTemp);
       }
-      else {
-        vypisLcdNodata();
-      }
-
-      break;
-
-    case 1:
-      lcd.setCursor(7, 3);
-      if (millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout) {
-        if (TimeoutSauna == 1) {
-          vypisLcdNodata2();
-        } else {
-          vypisLcdSaunaNast(SaunaNast);
-        }
-      }
-      else {
-        vypisLcdNodata();
-      }
-
-      break;
+    }
+  }
+  else {
+    vypisLcdNodata();
   }
 
 
 
-  ii = millis() / (lcdUpdateTime_Period  * 2);
+  long ii = millis() / (lcdUpdateTime_Period  * 2);
   ii = ii % 3;
 
   switch (ii) {
@@ -270,7 +250,7 @@ void vypisOstatne(void)
       lcd.setCursor(7, 0);
       lcd.print(F("chodba"));
       lcd.setCursor(7, 1);
-      vypisLcdTemp(TempBase);
+      vypisLcdDecimal(TempBase);
 
       lcd.setCursor(14, 2);
       lcd.print(F("kuren."));
@@ -293,7 +273,7 @@ void vypisOstatne(void)
       lcd.print(F("izba1 "));
       if (millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout) {
         lcd.setCursor(7, 1);
-        vypisLcdTemp(TempIzba1);
+        vypisLcdDecimal(TempIzba1);
       }
       else {
         lcd.setCursor(7, 1);
@@ -321,7 +301,7 @@ void vypisOstatne(void)
       lcd.print(F("izba2 "));
       lcd.setCursor(7, 1);
       if (millis() - rx433MHzAgainIzba2 < rx433MHzAgain_Timeout) {
-        vypisLcdTemp(TempIzba2);
+        vypisLcdDecimal(TempIzba2);
       }
       else {
         lcd.setCursor(7, 1);
@@ -419,7 +399,7 @@ void check433MHz(void) {
     //Serial.println(F("VW_GET_MESSAGE"));
     int i;
 
-    led(LED_on);
+    led(LED_ON);
     Serial.println(F("Received433MHz: "));
     Serial.print(F(" buflen="));
     Serial.println(buflen);
@@ -446,14 +426,14 @@ void check433MHz(void) {
 
       if (buf[3] == '1') {
         rx433MHzAgainIzba1 = millis();
-        TempIzba1 = convrxnum(buf[4], buf[5]);
-        TimeoutIzba1 = buf[11];
+        TempIzba1 = convNumSigned(buf[4], buf[5]);
+                                  TimeoutIzba1 = buf[11];
       }
 
       if (buf[3] == '2') {
         rx433MHzAgainIzba2 = millis();
-        TempIzba2 = convrxnum(buf[4], buf[5]);
-        TimeoutIzba2 = buf[11];
+        TempIzba2 = convNumSigned(buf[4], buf[5]);
+                                  TimeoutIzba2 = buf[11];
       }
     }
 
@@ -463,28 +443,26 @@ void check433MHz(void) {
 
       if (buf[3] == '1') {
         rx433MHzAgainVonku = millis();
-        TempVonku = convrxnum(buf[4], buf[5]);
-        TimeoutVonku = buf[10];
+        TempVonku = convNumSigned(buf[4], buf[5]);
+                                  TimeoutVonku = buf[10];
       }
 
       if (buf[3] == '2') {
         rx433MHzAgainSauna = millis();
-        SaunaTemp = convrxnum(buf[4], buf[5]);
-        SaunaNast = convrxnum(buf[6], buf[7]);
-        SaunaOhrev = buf[8];
-        TimeoutSauna = buf[10];
+        SaunaTemp = convNumSigned(buf[4], buf[5]);
+                                  TimeoutSauna = buf[10];
       }
 
       if (buf[3] == '3') {
         rx433MHzAgainRury = millis();
-        RuryKotolVystup = convrxnum(buf[4], buf[5]);
-        RuryKotolSpiatocka = convrxnum(buf[6], buf[7]);
-        RuryBojlerVystup = convrxnum(buf[8], buf[9]);
-        TimeoutRury = buf[10];
+        RuryKotolVystup = convNumSigned(buf[4], buf[5]);
+                                        RuryKotolSpiatocka = convNumSigned(buf[6], buf[7]);
+                                            RuryBojlerVystup = convNumSigned(buf[8], buf[9]);
+                                                TimeoutRury = buf[10];
       }
     }
 
-    led(LED_off);
+                                        led(LED_OFF);
 
   }
 
@@ -691,7 +669,7 @@ int StringContains(String s, String search) {
 
 
 
-void vypisLcdTemp(int input) {
+void vypisLcdDecimal(int input) {
   if ((input < 100) && (input != 0)) {
     lcd.print(F(" "));
   }
@@ -704,43 +682,17 @@ void vypisLcdTemp(int input) {
 
 
 
-void vypisLcdHumidity(int input) {
-  lcd.print(F(" "));
-  if ((input < 100) && (input != 0)) {
-    lcd.print(F(" "));
-  }
-  lcd.print(input / 10);
-  lcd.print(F("% "));
-}
-
-
-
-
-
-
-void vypisLcdSaunaNast(int input) {
-  lcd.write((byte)1);
-  if ((input < 100) && (input != 0)) {
-    lcd.print(F(" "));
-  }
-  lcd.print(input / 10);
-  lcd.write(B11011111); //stupen
-  lcd.print(F(" "));
-}
-
-
-
-
 
 void vypisLcdTempInt(int input) {
-  lcd.print(F(" "));
-  if ((input < 100) and (input > -100)) {
+  input = input / 10;
+  //lcd.print(F(" "));
+  if (abs(input) < 10) {
     lcd.print(F(" "));
   }
-  if (input > 0) {
+  if (input >= 0) {
     lcd.print(F(" "));
   }
-  lcd.print(input / 10);
+  lcd.print(input);
   lcd.write(B11011111); //stupen
   lcd.print(F(" "));
 }
@@ -776,12 +728,12 @@ void vypisLcdNodata3(void) {
 
 void tx433MHz(void)
 {
-  led(LED_on);
+  led(LED_ON);
   Serial.println(F("tx433MHz();"));
   tx433MHzPacket(1);
   tx433MHzPacket(2);
   tx433MHzPacket(3);
-  led(LED_off);
+  led(LED_OFF);
 
 }
 
@@ -916,7 +868,7 @@ void setKotol(void)
 
 
 
-int convrxnum(uint8_t bufh, uint8_t bufl) {
+int convNumSigned(uint8_t bufh, uint8_t bufl) {
   if (bufh > 127) {
     return -( 10 * (256 - (int)bufh ) + (256 - (int)bufl) );
   }
@@ -931,7 +883,7 @@ void led(byte value) {
   const unsigned char LED_pin = 13;
 
   if (value > 0) {
-    value = LED_on;
+    value = LED_ON;
   }
   pinMode(LED_pin, OUTPUT);
   analogWrite(LED_pin, value);
