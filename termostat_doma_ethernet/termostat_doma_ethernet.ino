@@ -182,14 +182,19 @@ void check433MHz(void) {
 
 
 
-int convNumSigned(uint8_t bufh, uint8_t bufl) {
+int convNumSigned(int bufh, int bufl) {  
   if (bufh > 127) {
-    return -( 10 * (256 - (int)bufh ) + ( 256 - (int)bufl) );
+    bufh = - ( 256 - bufh );
   }
-  else {
-    return (10 * (int)bufh + (int)bufl);
+
+  if (bufl > 127) {
+    bufl = - ( 256 - bufl );
   }
+
+  return (10 * (int)bufh + (int)bufl);
 }
+
+
 
 
 
