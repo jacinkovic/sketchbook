@@ -8,6 +8,8 @@ EthernetServer server = EthernetServer(80);
 
 #include "DHT.h"
 
+#define DEBUGoff
+
 const byte DHTPIN = 2; // what pin we're connected to
 #define DHTTYPE DHT22 // DHT 22 (AM2302)
 
@@ -21,18 +23,13 @@ uint8_t buflen = VW_MAX_MESSAGE_LEN;
 const byte DS18S20_Pin_Temp1 = 5; //DS18S20 Signal pin
 const byte DS18S20_Pin_Temp2 = 6; //DS18S20 Signal pin
 const byte DS18S20_Pin_Temp3 = 7; //DS18S20 Signal pin
-const byte DS18S20_Pin_tempRoom = 4; //DS18S20 Signal pin
+const byte DS18S20_Pin_TempRoom = 4; //DS18S20 Signal pin
 
 //Temperature chip i/o
 OneWire ds_Temp1(DS18S20_Pin_Temp1);
 OneWire ds_Temp2(DS18S20_Pin_Temp2);
 OneWire ds_Temp3(DS18S20_Pin_Temp3);
-OneWire ds_tempRoom(DS18S20_Pin_tempRoom);
-
-//byte dsdata[12];
-//byte dsaddr[8];
-const int dsRetErrValue = -1000;
-//float dsTemperatureSum;
+OneWire ds_tempRoom(DS18S20_Pin_TempRoom);
 
 int temp1;
 int temp2;
@@ -45,34 +42,28 @@ int gasCO;
 
 
 //TC
-const byte analogTCPin = A4;
-const float TC_m = 0.10371769557;
-const float TC_b = 37.3700094445;
-const byte TC_repeat = 100;
-//float TC_val, TCValue = 0;
+//const float TC_m = 0.10371769557;
+//const float TC_b = 37.3700094445;
 
+const byte analogTCPin = A4;
+const byte TC_repeat = 100;
 const byte analoggasZemPlynPin = A0;
 const byte analoggasCOPin = A1;
 
-//int gasZemPlyn_val, gasZemPlynValue = 0;
-//int gasCO_val, gasCOValue = 0;
+const unsigned long MeasureTime_Period = 40 * 1000;
+unsigned long MeasureTimeLast;
 
-unsigned int time;
-const unsigned int Measure_TimePeriod = 20; //repeat reading from sensors
-unsigned int Measure_TimeAgain = 0;
+const unsigned long EtherQuery_Timeout = 15 * 60000;
+unsigned long EtherQueryLast;
 
-const unsigned int EtherQueryTimeout = 15 * 60;
-unsigned int EtherQueryLast;
-
-const unsigned int ReceiveSaunaTimeout = 1 * 60;
-unsigned int ReceiveSaunaValidTime;
+const unsigned long ReceiveSauna_Timeout = 2 * 60000;
+unsigned long ReceiveSaunaLast;
 
 //sauna
 int saunaskutTemp, saunanastTemp;
 int saunacasVyp;
-byte saunaohrevSpirala[5] = {
-  0, 0, 0, 0
-};
+byte saunaohrevSpirala;
+
 
 
 
@@ -80,152 +71,59 @@ byte saunaohrevSpirala[5] = {
 void setup() {
   wdt_enable(WDTO_8S);
 
+#ifdef DEBUG
   Serial.begin(115200);
-
   Serial.println(F("setup();"));
+#endif
 
-  Serial.print(F("freeRam=")); Serial.println(freeRam());
-
-  time = (unsigned long)(millis() / 1000);
+  uint8_t mac[6] = {0x74, 0x73, 0x71, 0x2D, 0x32, 0x32};
+  IPAddress myIP(192, 168, 1, 202);
+  Ethernet.begin(mac, myIP);
+  server.begin();
 
   pinMode(analogTCPin, INPUT);
-
   dht.begin();
 
   vw_set_rx_pin(receive433MHz_pin);
   vw_setup(2000);	 // Bits per sec
   vw_rx_start();   // Start the receiver PLL running
 
-  uint8_t mac[6] = {0x74, 0x69, 0x69, 0x2D, 0x32, 0x32};
-  IPAddress myIP(192, 168, 1, 202);
-  Ethernet.begin(mac, myIP);
-  server.begin();
+  for (int i = 0; i < 10; i++) {
+    wdt_reset();
+    delay(100);
+    read_sensors();
+    if (EthernetClient client = server.available()) {
+      client.stop();
+    }
+  }
 
-  Serial.print(F("freeRam=")); Serial.println(freeRam());
-
-  EtherQueryLast = time + EtherQueryTimeout;
-
-  wdt_reset(); //wait for ds18b20
-  delay(2000);
-  read_sensors();
-
+#ifdef DEBUG
   Serial.println(F("loop();"));
+#endif
+
+  ReceiveSaunaLast = millis() - ReceiveSauna_Timeout;
 }
 
 void loop()
 {
   wdt_reset();
 
-  time = (unsigned long)(millis() / 1000);
-
   checkReceiveSauna433MHz();
 
-  if (time > Measure_TimeAgain)
+  if (millis() - MeasureTimeLast > MeasureTime_Period)
   {
-    Serial.print(F("freeRam=")); Serial.println(freeRam());
-
     read_sensors();
-    //read_sensors();
-
-    Serial.println(F("Measured."));
-    Serial.print(temp1);
-    Serial.print(F(" "));
-    Serial.print(temp2);
-    Serial.print(F(" "));
-    Serial.print(temp3);
-    Serial.print(F(" "));
-    Serial.print(tempTC);
-    Serial.print(F(" "));
-    Serial.print(tempRoom);
-    Serial.print(F(" "));
-    Serial.print(humidRoom);
-    Serial.print(F(" "));
-    Serial.print(gasZemPlyn);
-    Serial.print(F(" "));
-    Serial.print(gasCO);
-    Serial.print(F(", EtherTimeout = "));
-    Serial.print(EtherQueryLast - time);
-    Serial.println();
-
-    Measure_TimeAgain = time + Measure_TimePeriod;
-
+    MeasureTimeLast = millis();
   }
 
-  //ETHERNET PART
-  if (EthernetClient client = server.available())
-  {
-    Serial.println(F("server.available()"));
-    Serial.print(F("freeRam=")); Serial.println(freeRam());
-
-//    size_t size;
-//    Serial.println(F("client.available()"));
-//    while ((size = client.available()) > 0)
-//    {
-//      if (size > 1) {
-//        size = 1;
-//      }
-//      uint8_t* msg = (uint8_t*)malloc(size);
-//      size = client.read(msg, size);
-//      free(msg);
-//    }
-
-    client.print(temp1);
-    //client.print(F("."));
-    //client.print((int)(temp1 * 10) % 10);
-    client.print(F(" "));
-    client.print(temp2);
-    //client.print(F("."));
-    //client.print((int)(temp2 * 10) % 10);
-    client.print(F(" "));
-    client.print(temp3);
-    //client.print(F("."));
-    //client.print((int)(temp3 * 10) % 10);
-    client.print(F(" "));
-    client.print(tempTC);
-    client.print(F(" "));
-    client.print(tempRoom);
-    client.print(F(" "));
-    client.print(humidRoom);
-    client.print(F(" "));
-    client.print(gasZemPlyn);
-    client.print(F("."));
-    client.print(gasZemPlyn);
-    client.print(F(" "));
-    client.print(gasCO);
-    client.print(F(" "));
-    client.print(time);
-
-    if (time < ReceiveSaunaValidTime) {
-      client.print(F(" SAUNAOK"));
-      client.print(F(" "));
-      client.print(saunaskutTemp);
-      client.print(F(" "));
-      client.print(saunanastTemp);
-      client.print(F(" "));
-      client.print(saunacasVyp);
-      client.print(F(" "));
-      client.print(saunaohrevSpirala[1]);
-      client.print(F(" "));
-      client.print(saunaohrevSpirala[2]);
-      client.print(F(" "));
-      client.print(saunaohrevSpirala[3]);
-    }
-    else {
-      client.print(F(" SAUNATIMEOUT"));
-      client.print(F(" 0 0 0 0 0 0"));
-    }
-
-    client.stop();
-    EtherQueryLast = time + EtherQueryTimeout;
-
-    Serial.println(F("Eth sent."));
-  }
-
+  checkEth();
 
   //reset ak sa ethernet neozyva
-  if ( EtherQueryLast < time )
+  if (millis() - EtherQueryLast > EtherQuery_Timeout)
   {
-    Serial.println(F("EtherQueryLast < time"));
+#ifdef DEBUG
+    Serial.println(F("EtherQueryLastTimeout"));
+#endif
     while (1);
   }
 
@@ -240,25 +138,26 @@ void loop()
 int getTemp1() {
   //returns the temperature from one DS18S20 in DEG Celsius
 
+  const int dsRetErrValue = -1000;
   byte dsdata[12];
   byte dsaddr[8];
 
-  Serial.println(F("getTemp1: "));
+  //Serial.println(F("getTemp1: "));
 
   if ( !ds_Temp1.search(dsaddr)) {
     //no more sensors on chain, reset search
     ds_Temp1.reset_search();
-    Serial.println(F("no sensor!"));
+    //Serial.println(F("no sensor!"));
     return dsRetErrValue;
   }
 
   if ( OneWire::crc8( dsaddr, 7) != dsaddr[7]) {
-    Serial.println(F("CRC invalid!"));
+    //Serial.println(F("CRC invalid!"));
     return dsRetErrValue;
   }
 
   if ( dsaddr[0] != 0x10 && dsaddr[0] != 0x28) {
-    Serial.print(F("no device!"));
+    //Serial.print(F("no device!"));
     return dsRetErrValue;
   }
 
@@ -283,7 +182,7 @@ int getTemp1() {
   dsTemperatureSum = dsTemperatureSum / 16;
 
   if (dsdata[8] != OneWire::crc8(dsdata, 8)) {
-    Serial.print(F("CRC invalid!_"));
+    //Serial.print(F("CRC invalid!_"));
     return dsRetErrValue;
   }
 
@@ -295,25 +194,26 @@ int getTemp1() {
 int getTemp2() {
   //returns the temperature from one DS18S20 in DEG Celsius
 
+  const int dsRetErrValue = -1000;
   byte dsdata[12];
   byte dsaddr[8];
 
-  Serial.println(F("getTemp2: "));
+  //Serial.println(F("getTemp2: "));
 
   if ( !ds_Temp2.search(dsaddr)) {
     //no more sensors on chain, reset search
     ds_Temp2.reset_search();
-    Serial.println(F("no sensor!"));
+    //Serial.println(F("no sensor!"));
     return dsRetErrValue;
   }
 
   if ( OneWire::crc8( dsaddr, 7) != dsaddr[7]) {
-    Serial.println(F("CRC invalid!"));
+    //Serial.println(F("CRC invalid!"));
     return dsRetErrValue;
   }
 
   if ( dsaddr[0] != 0x10 && dsaddr[0] != 0x28) {
-    Serial.print(F("no device!"));
+    //Serial.print(F("no device!"));
     return dsRetErrValue;
   }
 
@@ -339,7 +239,7 @@ int getTemp2() {
   dsTemperatureSum = dsTemperatureSum / 16;
 
   if (dsdata[8] != OneWire::crc8(dsdata, 8)) {
-    Serial.print(F("CRC invalid!_"));
+    //Serial.print(F("CRC invalid!_"));
     return dsRetErrValue;
   }
 
@@ -350,25 +250,26 @@ int getTemp2() {
 int getTemp3() {
   //returns the temperature from one DS18S20 in DEG Celsius
 
+  const int dsRetErrValue = -1000;
   byte dsdata[12];
   byte dsaddr[8];
 
-  Serial.println(F("getTemp3: "));
+  //Serial.println(F("getTemp3: "));
 
   if ( !ds_Temp3.search(dsaddr)) {
     //no more sensors on chain, reset search
     ds_Temp3.reset_search();
-    Serial.println(F("no sensor!"));
+    //Serial.println(F("no sensor!"));
     return dsRetErrValue;
   }
 
   if ( OneWire::crc8( dsaddr, 7) != dsaddr[7]) {
-    Serial.println(F("CRC invalid!"));
+    //Serial.println(F("CRC invalid!"));
     return dsRetErrValue;
   }
 
   if ( dsaddr[0] != 0x10 && dsaddr[0] != 0x28) {
-    Serial.print(F("no device!"));
+    //Serial.print(F("no device!"));
     return dsRetErrValue;
   }
 
@@ -394,7 +295,7 @@ int getTemp3() {
   dsTemperatureSum = dsTemperatureSum / 16;
 
   if (dsdata[8] != OneWire::crc8(dsdata, 8)) {
-    Serial.print(F("CRC invalid!_"));
+    //Serial.print(F("CRC invalid!_"));
     return dsRetErrValue;
   }
 
@@ -406,25 +307,26 @@ int getTemp3() {
 int getTempRoom() {
   //returns the temperature from one DS18S20 in DEG Celsius
 
+  const int dsRetErrValue = -1000;
   byte dsdata[12];
   byte dsaddr[8];
 
-  Serial.println(F("getTempRoom: "));
+  //Serial.println(F("getTempRoom: "));
 
   if ( !ds_tempRoom.search(dsaddr)) {
     //no more sensors on chain, reset search
     ds_tempRoom.reset_search();
-    Serial.println(F("no sensor!"));
+    //Serial.println(F("no sensor!"));
     return dsRetErrValue;
   }
 
   if ( OneWire::crc8( dsaddr, 7) != dsaddr[7]) {
-    Serial.println(F("CRC invalid!"));
+    //Serial.println(F("CRC invalid!"));
     return dsRetErrValue;
   }
 
   if ( dsaddr[0] != 0x10 && dsaddr[0] != 0x28) {
-    Serial.print(F("no device!"));
+    //Serial.print(F("no device!"));
     return dsRetErrValue;
   }
 
@@ -450,7 +352,7 @@ int getTempRoom() {
   dsTemperatureSum = dsTemperatureSum / 16;
 
   if (dsdata[8] != OneWire::crc8(dsdata, 8)) {
-    Serial.print(F("CRC invalid!_"));
+    //Serial.print(F("CRC invalid!_"));
     return dsRetErrValue;
   }
 
@@ -515,18 +417,19 @@ void checkReceiveSauna433MHz(void) {
   int i;
 
   buflen = 12;
+
   if (vw_get_message(buf, &buflen)) // Non-blocking
   {
     if (buf[0] == 'S') {
-      ReceiveSaunaValidTime = time + ReceiveSaunaTimeout;
+
+      ReceiveSaunaLast = millis();
 
       saunaskutTemp = (float)buf[1] + (float)buf[2] / 10;
       saunanastTemp = buf[3];
       saunacasVyp = (float)buf[6] * 60 + (float)buf[7];
-      saunaohrevSpirala[1] = buf[8];
-      saunaohrevSpirala[2] = buf[9];
-      saunaohrevSpirala[3] = buf[10];
-
+      saunaohrevSpirala = buf[8] + buf[9] + buf[10];
+      
+#ifdef DEBUG
       Serial.print(F("Sauna 433MHz: "));
       for (i = 0; i < buflen; i++)
       {
@@ -541,18 +444,69 @@ void checkReceiveSauna433MHz(void) {
       Serial.print(F(" "));
       Serial.print(saunacasVyp);
       Serial.print(F(" "));
-      Serial.print(saunaohrevSpirala[1]);
-      Serial.print(F(" "));
-      Serial.print(saunaohrevSpirala[2]);
-      Serial.print(F(" "));
-      Serial.print(saunaohrevSpirala[3]);
+      Serial.print(saunaohrevSpirala);
       Serial.println();
+#endif
     }
+
   }
 
+  wdt_reset();
 }
 
 
+void checkEth(void) {
+
+  //ETHERNET PART
+  if (EthernetClient client = server.available())
+  {
+#ifdef DEBUG
+    Serial.println(F("eth."));
+#endif
+
+    client.print(temp1);
+    client.print(F(" "));
+    client.print(temp2);
+    client.print(F(" "));
+    client.print(temp3);
+    client.print(F(" "));
+    client.print(tempTC);
+    client.print(F(" "));
+    client.print(tempRoom);
+    client.print(F(" "));
+    client.print(humidRoom);
+    client.print(F(" "));
+    client.print(gasZemPlyn);
+    client.print(F(" "));
+    client.print(gasCO);
+    client.print(F(" "));
+    client.print((millis() / 1000));
+
+    if (millis() - ReceiveSaunaLast < ReceiveSauna_Timeout) {
+
+      client.print(F(" SAOK"));
+      client.print(F(" "));
+      client.print(saunaskutTemp);
+      client.print(F(" "));
+      client.print(saunanastTemp);
+      client.print(F(" "));
+      client.print(saunacasVyp);
+      client.print(F(" "));
+      client.print(saunaohrevSpirala);
+     
+    }
+    else {
+      client.print(F(" SAOFF"));
+      client.print(F(" 0 0 0 0"));
+      ReceiveSaunaLast = millis() - ReceiveSauna_Timeout; //update timeout to overflow
+    }
+
+    client.stop();
+    EtherQueryLast = millis();
+  }
+
+  wdt_reset();
+}
 
 
 void read_sensors(void)
@@ -569,22 +523,43 @@ void read_sensors(void)
   float h = dht.readHumidity();
   float t = dht.readTemperature();
   if (isnan(t) || isnan(h)) {
+#ifdef DEBUG
     Serial.println(F("DHT: failed"));
+#endif
   }
   else {
     humidRoom = h;
   }
+
+#ifdef DEBUG
+  Serial.println(F("read_sensors();"));
+  Serial.print(temp1);
+  Serial.print(F(" "));
+  Serial.print(temp2);
+  Serial.print(F(" "));
+  Serial.print(temp3);
+  Serial.print(F(" "));
+  Serial.print(tempTC);
+  Serial.print(F(" "));
+  Serial.print(tempRoom);
+  Serial.print(F(" "));
+  Serial.print(humidRoom);
+  Serial.print(F(" "));
+  Serial.print(gasZemPlyn);
+  Serial.print(F(" "));
+  Serial.print(gasCO);
+  Serial.println();
+#endif
 }
 
 
 
-
-int freeRam()
-{
-  extern int __heap_start, *__brkval;
-  int v;
-  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-}
+//int freeRam()
+//{
+//  extern int __heap_start, *__brkval;
+//  int v;
+//  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+//}
 
 
 
