@@ -45,18 +45,18 @@ int gasCO;
 //const float TC_m = 0.10371769557;
 //const float TC_b = 37.3700094445;
 
-const byte analogTCPin = A4;
+const byte analogTCPin = A5;
 const byte TC_repeat = 100;
 const byte analoggasZemPlynPin = A0;
 const byte analoggasCOPin = A1;
 
-const unsigned long MeasureTime_Period = 40 * 1000;
+const unsigned long MeasureTime_Period = 60 * 1000L;
 unsigned long MeasureTimeLast;
 
-const unsigned long EtherQuery_Timeout = 15 * 60000;
+const unsigned long EtherQuery_Timeout = 15 * 60000L;
 unsigned long EtherQueryLast;
 
-const unsigned long ReceiveSauna_Timeout = 2 * 60000;
+const unsigned long ReceiveSauna_Timeout = 2 * 60000L;
 unsigned long ReceiveSaunaLast;
 
 //sauna
@@ -76,32 +76,30 @@ void setup() {
   Serial.println(F("setup();"));
 #endif
 
-  uint8_t mac[6] = {0x74, 0x73, 0x71, 0x2D, 0x32, 0x32};
-  IPAddress myIP(192, 168, 1, 202);
-  Ethernet.begin(mac, myIP);
-  server.begin();
-
   pinMode(analogTCPin, INPUT);
   dht.begin();
+
+  for (int i = 0; i < 10; i++) {
+    wdt_reset();
+    delay(500);
+    read_sensors();
+  }
 
   vw_set_rx_pin(receive433MHz_pin);
   vw_setup(2000);	 // Bits per sec
   vw_rx_start();   // Start the receiver PLL running
 
-  for (int i = 0; i < 10; i++) {
-    wdt_reset();
-    delay(100);
-    read_sensors();
-    if (EthernetClient client = server.available()) {
-      client.stop();
-    }
-  }
+  ReceiveSaunaLast = millis() - ReceiveSauna_Timeout;
+
+  uint8_t mac[6] = {0x74, 0x73, 0x71, 0x2D, 0x32, 0x32};
+  IPAddress myIP(192, 168, 1, 202);
+  Ethernet.begin(mac, myIP);
+  server.begin();
 
 #ifdef DEBUG
   Serial.println(F("loop();"));
 #endif
 
-  ReceiveSaunaLast = millis() - ReceiveSauna_Timeout;
 }
 
 void loop()
@@ -110,7 +108,7 @@ void loop()
 
   checkReceiveSauna433MHz();
 
-  if (millis() - MeasureTimeLast > MeasureTime_Period)
+  if ((long)(millis() - MeasureTimeLast > MeasureTime_Period))
   {
     read_sensors();
     MeasureTimeLast = millis();
@@ -119,7 +117,7 @@ void loop()
   checkEth();
 
   //reset ak sa ethernet neozyva
-  if (millis() - EtherQueryLast > EtherQuery_Timeout)
+  if ((long)(millis() - EtherQueryLast > EtherQuery_Timeout))
   {
 #ifdef DEBUG
     Serial.println(F("EtherQueryLastTimeout"));
@@ -428,7 +426,7 @@ void checkReceiveSauna433MHz(void) {
       saunanastTemp = buf[3];
       saunacasVyp = (float)buf[6] * 60 + (float)buf[7];
       saunaohrevSpirala = buf[8] + buf[9] + buf[10];
-      
+
 #ifdef DEBUG
       Serial.print(F("Sauna 433MHz: "));
       for (i = 0; i < buflen; i++)
@@ -482,7 +480,7 @@ void checkEth(void) {
     client.print(F(" "));
     client.print((millis() / 1000));
 
-    if (millis() - ReceiveSaunaLast < ReceiveSauna_Timeout) {
+    if ((long)(millis() - ReceiveSaunaLast < ReceiveSauna_Timeout)) {
 
       client.print(F(" SAOK"));
       client.print(F(" "));
@@ -493,7 +491,7 @@ void checkEth(void) {
       client.print(saunacasVyp);
       client.print(F(" "));
       client.print(saunaohrevSpirala);
-     
+
     }
     else {
       client.print(F(" SAOFF"));
