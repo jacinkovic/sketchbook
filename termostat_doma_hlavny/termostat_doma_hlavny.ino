@@ -14,20 +14,23 @@
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
-const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  45 * 60000;
-const unsigned long Kotol_MinCasBehuKotla =  15 * 60000;
-const unsigned long Kotol_CasDobehCerpadlo =  7 * 60000;
+const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  45 * 60000L;
+const unsigned long Kotol_MinCasBehuKotla =  15 * 60000L;
+const unsigned long Kotol_CasDobehCerpadlo =  15 * 60000L;
 unsigned long KotolCasZapnutia, KotolCasVypnutia = 0;
 unsigned char KotolStatus, CerpadloStatus;
 
-const unsigned char Rele1_Pin = 7;
-const unsigned char Rele2_Pin = 3;
+const unsigned char LED_Pin = 13;
+const unsigned char Light_Pin = A0;
 
-const unsigned char DS18S20Base_Pin = 5; //DS18S20 Signal pin on digital pin
+const unsigned char Rele1_Pin = 5;
+const unsigned char Rele2_Pin = 4;
+
+const unsigned char DS18S20Base_Pin = 6; //DS18S20 Signal pin on digital pin
 OneWire dsBase(DS18S20Base_Pin); // on digital pin 2
 
-const unsigned char rx433MHz_pin = 4;
-const unsigned char tx433MHz_pin = 2;
+const unsigned char rx433MHz_pin = 2;
+const unsigned char tx433MHz_pin = 3;
 
 uint8_t buf[VW_MAX_MESSAGE_LEN];
 uint8_t buflen = VW_MAX_MESSAGE_LEN;
@@ -66,9 +69,9 @@ int SaunaTemp, TimeoutSauna;
 int RuryKotolVystup, RuryKotolSpiatocka, RuryBojlerVystup, TimeoutRury;
 
 
-const unsigned char rEncPinA = 8;  // Connected to CLK on KY-040
-const unsigned char rEncPinB = 9;  // Connected to DT on KY-040
-const unsigned char rEncPinButton = 11; // Connected to SW on KY-040
+const unsigned char rEncPinA = 7;  // Connected to CLK on KY-040
+const unsigned char rEncPinB = 8;  // Connected to DT on KY-040
+const unsigned char rEncPinButton = 9; // Connected to SW on KY-040
 unsigned char rEncValALast;
 unsigned char rEncValButtonLast;
 
@@ -204,6 +207,9 @@ void vypisKotol(void)
   } else {
     lcd.print(F("_"));
   }
+
+  //lcd.setCursor(16, 1);
+  //lcd.print(getLight());
 
 }
 
@@ -522,16 +528,19 @@ void checkNastTemp(void) {
   if (tmp_rEncGetValue != 0) {
     //Serial.println(tmp);
 
-    if (tmp_rEncGetValue == 1) {
-      TempNast--;
+    if (rEncGetButton() == 1) { //is the button pressed?
 
-    }
-    if (tmp_rEncGetValue == -1) {
-      TempNast++;
-    }
+      if (tmp_rEncGetValue == 1) {
+        TempNast--;
+      }
+      
+      if (tmp_rEncGetValue == -1) {
+        TempNast++;
+      }
 
-    TempNast = constrain(TempNast, TempNast_Min, TempNast_Max);
-    vypisNastTemp();
+      TempNast = constrain(TempNast, TempNast_Min, TempNast_Max);
+      vypisNastTemp();
+    }
   }
 }
 
@@ -780,7 +789,7 @@ void tx433MHzPacket(unsigned int packetNum)
     msg[6] = TempNast / 10;
     msg[7] = TempNast % 10;
     msg[8] = KotolStatus;
-    msg[9] = CerpadloStatus;  
+    msg[9] = CerpadloStatus;
   }
 
   vw_send((uint8_t *)msg, buflen_433MHz);
@@ -868,7 +877,7 @@ void setKotol(void)
 
 
 
-int convNumSigned(int bufh, int bufl) {  
+int convNumSigned(int bufh, int bufl) {
   if (bufh > 127) {
     bufh = - ( 256 - bufh );
   }
@@ -885,16 +894,18 @@ int convNumSigned(int bufh, int bufl) {
 
 
 void led(byte value) {
-  const unsigned char LED_pin = 13;
-
   if (value > 0) {
     value = LED_ON;
   }
-  pinMode(LED_pin, OUTPUT);
-  analogWrite(LED_pin, value);
+  pinMode(LED_Pin, OUTPUT);
+  analogWrite(LED_Pin, value);
 }
 
 
+
+int getLight(void) {
+  return analogRead(Light_Pin);;
+}
 
 
 int freeRam()
