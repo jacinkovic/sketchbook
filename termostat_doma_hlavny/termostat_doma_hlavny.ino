@@ -14,10 +14,10 @@
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
-const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  45 * 60000L;
-const unsigned long Kotol_MinCasBehuKotla =  15 * 60000L;
+const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  60 * 60000L;
+const unsigned long Kotol_MinCasBehuKotla =  30 * 60000L;
 const unsigned long Kotol_CasDobehCerpadlo =  15 * 60000L;
-unsigned long KotolCasZapnutia, KotolCasVypnutia = 0;
+unsigned long KotolCasZapnutia, KotolCasVypnutia = 0L;
 unsigned char KotolStatus, CerpadloStatus;
 
 const unsigned char LED_Pin = 13;
@@ -36,15 +36,15 @@ uint8_t buf[VW_MAX_MESSAGE_LEN];
 uint8_t buflen = VW_MAX_MESSAGE_LEN;
 const unsigned char buflen_433MHz = 12;
 
-const unsigned long rx433MHzAgain_StartValue = 9999999; //to get timeout on start
+const unsigned long rx433MHzAgain_StartValue = 9999999L; //to get timeout on start
 
-const unsigned long tx433MHzUpdateTime_Period = 30000;
+const unsigned long tx433MHzUpdateTime_Period = 30000L;
 unsigned long tx433MHzUpdateTime = 0;
 
-const unsigned long TempBaseUpdateTime_Period = 60000;
+const unsigned long TempBaseUpdateTime_Period = 60000L;
 unsigned long TempBaseUpdateTime = rx433MHzAgain_StartValue;
 
-const unsigned long rx433MHzAgain_Timeout = 5 * 60000;
+const unsigned long rx433MHzAgain_Timeout = 5 * 60000L;
 unsigned long rx433MHzAgainIzba1 = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainIzba2 = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainVonku = rx433MHzAgain_StartValue;
@@ -52,7 +52,7 @@ unsigned long rx433MHzAgainSauna = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainRury = rx433MHzAgain_StartValue;
 
 
-const unsigned long lcdUpdateTime_Period  = 1000;
+const unsigned long lcdUpdateTime_Period  = 1000L;
 unsigned long lcdUpdateTime = 0;
 
 const int TempNast_Min = 100;
