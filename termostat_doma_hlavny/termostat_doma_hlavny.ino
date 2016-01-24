@@ -9,13 +9,15 @@
 
 #include <EEPROM.h>
 
+#define DEBUG
+
 #define LED_ON  255
 #define LED_OFF 0
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
 const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  60 * 60000L;
-const unsigned long Kotol_MinCasBehuKotla =  30 * 60000L;
+const unsigned long Kotol_MinCasBehuKotla =  60 * 60000L;
 const unsigned long Kotol_CasDobehCerpadlo =  15 * 60000L;
 unsigned long KotolCasZapnutia, KotolCasVypnutia = 0L;
 unsigned char KotolStatus, CerpadloStatus;
@@ -106,8 +108,10 @@ void setup()
 {
   wdt_enable(WDTO_8S);
 
+#ifdef DEBUG
   Serial.begin(115200);	// Debugging only
   Serial.println(F("setup();"));
+#endif
 
   lcd.begin(20, 4);                     // initialize the lcd
   lcd.clear();
@@ -130,7 +134,7 @@ void setup()
 
   for (int i = 0; i < 10; i++) { //initialise ds18b20
     wdt_reset();
-    float tmp = getTempBase();
+    int tmp = getTempBase();
     if (tmp != -1000) TempBase = tmp;
     delay(500);
   }
@@ -149,7 +153,9 @@ void setup()
   lcd.setCursor(7, 2);
   lcd.print(F("sauna"));
 
+#ifdef DEBUG
   Serial.println(F("loop();"));
+#endif
 }
 
 void loop()
@@ -158,13 +164,13 @@ void loop()
 
   checkNastTemp();
 
-  if (millis() - TempBaseUpdateTime > TempBaseUpdateTime_Period) {
+  if ((long)(millis() - TempBaseUpdateTime > TempBaseUpdateTime_Period)) {
     TempBaseUpdateTime = millis();
-    float tmp = getTempBase();
+    int tmp = getTempBase();
     if (tmp != -1000) TempBase = tmp;
   }
 
-  if (millis() - lcdUpdateTime > lcdUpdateTime_Period ) {
+  if ((long)(millis() - lcdUpdateTime > lcdUpdateTime_Period)) {
     lcdUpdateTime = millis();
 
     setKotol();
@@ -180,7 +186,7 @@ void loop()
 
   check433MHz();
 
-  if (millis() - tx433MHzUpdateTime > tx433MHzUpdateTime_Period) {
+  if ((long)(millis() - tx433MHzUpdateTime > tx433MHzUpdateTime_Period)) {
     tx433MHzUpdateTime = millis() - random(1000);
     tx433MHz();
   }
@@ -218,7 +224,7 @@ void vypisKotol(void)
 void vypisOstatne(void)
 {
   lcd.setCursor(0, 3);
-  if (millis() - rx433MHzAgainVonku < rx433MHzAgain_Timeout) {
+  if ((long)(millis() - rx433MHzAgainVonku < rx433MHzAgain_Timeout)) {
     if (TimeoutVonku == 1) {
       vypisLcdNodata2();
     } else {
@@ -231,7 +237,7 @@ void vypisOstatne(void)
 
 
   lcd.setCursor(7, 3);
-  if (millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout) {
+  if ((long)(millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout)) {
     if (TimeoutSauna == 1) {
       vypisLcdNodata2();
     } else {
@@ -261,7 +267,7 @@ void vypisOstatne(void)
       lcd.setCursor(14, 2);
       lcd.print(F("kuren."));
       lcd.setCursor(14, 3);
-      if (millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout) {
+      if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
         if (TimeoutRury == 1) {
           vypisLcdNodata2();
         } else {
@@ -277,7 +283,7 @@ void vypisOstatne(void)
     case 1:
       lcd.setCursor(7, 0);
       lcd.print(F("izba1 "));
-      if (millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout) {
+      if ((long)(millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout)) {
         lcd.setCursor(7, 1);
         vypisLcdDecimal(TempIzba1);
       }
@@ -289,7 +295,7 @@ void vypisOstatne(void)
       lcd.setCursor(14, 2);
       lcd.print(F("spiat."));
       lcd.setCursor(14, 3);
-      if (millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout) {
+      if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
         if (TimeoutRury == 1) {
           vypisLcdNodata2();
         } else {
@@ -306,7 +312,7 @@ void vypisOstatne(void)
       lcd.setCursor(7, 0);
       lcd.print(F("izba2 "));
       lcd.setCursor(7, 1);
-      if (millis() - rx433MHzAgainIzba2 < rx433MHzAgain_Timeout) {
+      if ((long)(millis() - rx433MHzAgainIzba2 < rx433MHzAgain_Timeout)) {
         vypisLcdDecimal(TempIzba2);
       }
       else {
@@ -317,7 +323,7 @@ void vypisOstatne(void)
       lcd.setCursor(14, 2);
       lcd.print(F("bojler"));
       lcd.setCursor(14, 3);
-      if (millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout) {
+      if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
         if (TimeoutRury == 1) {
           vypisLcdNodata2();
         } else {
@@ -406,18 +412,26 @@ void check433MHz(void) {
     int i;
 
     led(LED_ON);
+
+#ifdef DEBUG
     Serial.println(F("Received433MHz: "));
     Serial.print(F(" buflen="));
     Serial.println(buflen);
     Serial.print(F(" ASC: "));
+#endif
+
     for (i = 0; i < buflen; i++)
     {
       char c;
       c = buf[i];
+#ifdef DEBUG
       Serial.print(c);
       Serial.print(F(" "));
+#endif
     }
+#ifdef DEBUG
     Serial.println();
+#endif
     //         Serial.print(F(" DEC: "));
     //    for (i = 0; i < buflen; i++)
     //    {
@@ -513,8 +527,10 @@ int rEncGetButton(void) {
   wdt_reset();
   int rEncValButton = 1 - digitalRead(rEncPinButton);
   if (rEncValButton != rEncValButtonLast) {
-    //Serial.print (F("Button: "));
+#ifdef DEBUG
+    Serial.print (F("Button= "));
     Serial.println(rEncValButton);
+#endif
   }
   rEncValButtonLast = rEncValButton;
   return rEncValButton;
@@ -526,14 +542,16 @@ void checkNastTemp(void) {
   int tmp_rEncGetValue = rEncGetValue();
 
   if (tmp_rEncGetValue != 0) {
-    //Serial.println(tmp);
-
+#ifdef DEBUG
+    Serial.print (F("tmp_rEncGetValue= "));
+    Serial.println(tmp_rEncGetValue);
+#endif
     if (rEncGetButton() == 1) { //is the button pressed?
 
       if (tmp_rEncGetValue == 1) {
         TempNast--;
       }
-      
+
       if (tmp_rEncGetValue == -1) {
         TempNast++;
       }
@@ -551,8 +569,10 @@ void loadEEPROM(void)
   //TempNast 10
 
   TempNast = constrain(EEPROM.read(10), TempNast_Min, TempNast_Max);
+#ifdef DEBUG
   Serial.print(F("TempNast= "));
   Serial.println(TempNast);
+#endif
 }
 
 
@@ -575,7 +595,7 @@ void EEPROMupdate(int address, unsigned char value)
 
 
 
-float getTempBase() {
+int getTempBase() {
   //returns the temperature from one DS18S20 in DEG Celsius
 
   unsigned char data[12];
@@ -588,12 +608,16 @@ float getTempBase() {
   }
 
   if ( OneWire::crc8( addr, 7) != addr[7]) {
+#ifdef DEBUG
     Serial.println(F("CRC is not valid!"));
+#endif
     return -1000;
   }
 
   if ( addr[0] != 0x10 && addr[0] != 0x28) {
+#ifdef DEBUG
     Serial.print(F("Device is not recognized"));
+#endif
     return -1000;
   }
 
@@ -615,15 +639,18 @@ float getTempBase() {
   unsigned char MSB = data[1];
   unsigned char LSB = data[0];
 
-  float tempRead = ((MSB << 8) | LSB); //using two's compliment
-  float TemperatureSum = tempRead / 16;
+  int tempRead = ((MSB << 8) | LSB); //using two's compliment
+  tempRead = tempRead * 10;
+  int TemperatureSum = tempRead / 16;
 
   if (data[8] != OneWire::crc8(data, 8)) {
+#ifdef DEBUG
     Serial.print(F("ERROR: CRC didn't match\n"));
+#endif
     return -1000;
   }
 
-  return TemperatureSum * 10;
+  return TemperatureSum;
 
 }
 
@@ -635,7 +662,9 @@ float getTempBase() {
 char rEncGetChar( int direct, int input) {
   int old_input = input;
 
+#ifdef DEBUG
   Serial.println(input);
+#endif
   if (direct == 1) {
     input--;
     if (input == 97 - 1) input = 90;
@@ -655,7 +684,9 @@ char rEncGetChar( int direct, int input) {
     input = 32;
   }
 
+#ifdef DEBUG
   Serial.println(input);
+#endif
   return input;
 }
 
@@ -738,7 +769,9 @@ void vypisLcdNodata3(void) {
 void tx433MHz(void)
 {
   led(LED_ON);
+#ifdef DEBUG
   Serial.println(F("tx433MHz();"));
+#endif
   tx433MHzPacket(1);
   tx433MHzPacket(2);
   tx433MHzPacket(3);
@@ -763,7 +796,7 @@ void tx433MHzPacket(unsigned int packetNum)
     msg[4] = TempIzba1 / 10;
     msg[5] = TempIzba1 % 10;
 
-    if (millis() - rx433MHzAgainIzba1 > rx433MHzAgain_Timeout) {
+    if ((long)(millis() - rx433MHzAgainIzba1 > rx433MHzAgain_Timeout)) {
       msg[10] = 1;
     }
     else {
@@ -775,7 +808,7 @@ void tx433MHzPacket(unsigned int packetNum)
     msg[4] = TempIzba2 / 10;
     msg[5] = TempIzba2 % 10;
 
-    if (millis() - rx433MHzAgainIzba2 > rx433MHzAgain_Timeout) {
+    if ((long)(millis() - rx433MHzAgainIzba2 > rx433MHzAgain_Timeout)) {
       msg[10] = 1;
     }
     else {
@@ -806,51 +839,63 @@ void setKotol(void)
   int tmp_base, tmp_base1, tmp_base2;
 
   tmp_base1 = TempIzba1;
-  if (millis() - rx433MHzAgainIzba1 > rx433MHzAgain_Timeout) {
+  if ((long)(millis() - rx433MHzAgainIzba1 > rx433MHzAgain_Timeout)) {
     tmp_base1 = TempBase;
-    //Serial.println(F("nebezi Izba1"));
+#ifdef DEBUG
+    Serial.println(F("nebezi Izba1"));
+#endif
   }
 
   tmp_base2 = TempIzba2;
-  if (millis() - rx433MHzAgainIzba2 > rx433MHzAgain_Timeout) {
+  if ((long)(millis() - rx433MHzAgainIzba2 > rx433MHzAgain_Timeout)) {
     tmp_base2 = TempBase;
-    //Serial.println(F("nebezi Izba2"));
+#ifdef DEBUG
+    Serial.println(F("nebezi Izba2"));
+#endif
   }
 
   //vyberie nizsiu teplotu z oboch senzorov, resp. nahrada za hlavny senzor
   tmp_base = min(tmp_base1, tmp_base2); //vyssiu z oboch izieb
   tmp_base = min(TempBase, tmp_base);  //porovnat aj s bazou
 
-
+#ifdef DEBUG
   if (TempNast > tmp_base) {
-    //Serial.println("+");
+    Serial.println("+");
   }
   else {
-    //Serial.println("_");
+    Serial.println("_");
   }
-
+#endif
 
   if (TempNast > tmp_base) {
     if (KotolStatus == 0) {
-      if ((millis() - KotolCasVypnutia > Kotol_MinCasMedziDvomaZapnutiamiKotla) || (KotolCasVypnutia == 0)) {
+      if ((long)(millis() - KotolCasVypnutia > Kotol_MinCasMedziDvomaZapnutiamiKotla) || (long)(KotolCasVypnutia == 0)) {
         setKotol(1);
         KotolCasZapnutia = millis();
+#ifdef DEBUG
         Serial.println(F("Kotol zapnutie"));
+#endif
       }
       else {
+#ifdef DEBUG
         Serial.println(F("Kotol kratky cas medzi dvoma zapnutiami"));
+#endif
       }
     }
   }
   else {
     if (KotolStatus == 1) {
-      if (millis() - KotolCasZapnutia > Kotol_MinCasBehuKotla) {
+      if ((long)(millis() - KotolCasZapnutia > Kotol_MinCasBehuKotla)) {
         setKotol(0);
         KotolCasVypnutia = millis();
+#ifdef DEBUG
         Serial.println(F("Kotol vypnutie"));
+#endif
       }
       else {
+#ifdef DEBUG
         Serial.println(F("Kotol kratky cas zapnutia"));
+#endif
       }
     }
   }
@@ -858,17 +903,23 @@ void setKotol(void)
   if (KotolStatus == 1) {
     if (CerpadloStatus == 0) {
       setCerpadlo(1);
+#ifdef DEBUG
       Serial.println(F("Cerpadlo zapnutie"));
+#endif
     }
   }
   else {
     if (CerpadloStatus == 1) {
-      if (millis() - KotolCasVypnutia > Kotol_CasDobehCerpadlo) {
+      if ((long)(millis() - KotolCasVypnutia > Kotol_CasDobehCerpadlo)) {
         setCerpadlo(0);
+#ifdef DEBUG
         Serial.println(F("Cerpadlo vypnutie"));
+#endif
       }
       else {
+#ifdef DEBUG
         Serial.println(F("Cerpadlo dobeh"));
+#endif
       }
     }
   }
