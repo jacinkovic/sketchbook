@@ -18,7 +18,7 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
 const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  60 * 60000L;
 const unsigned long Kotol_MinCasBehuKotla =  60 * 60000L;
-const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
+const unsigned long Kotol_CasDobehCerpadlo =  15 * 60000L;
 unsigned long KotolCasZapnutia, KotolCasVypnutia = 0L;
 unsigned char KotolStatus, CerpadloStatus;
 

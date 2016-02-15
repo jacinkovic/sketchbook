@@ -48,7 +48,6 @@ unsigned long TempBaseUpdateTime = rx433MHzAgain_StartValue;
 
 const unsigned long rx433MHzAgain_Timeout = 5 * 60000L;
 unsigned long rx433MHzAgainIzba1 = rx433MHzAgain_StartValue;
-unsigned long rx433MHzAgainIzba2 = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainVonku = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainSauna = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainRury = rx433MHzAgain_StartValue;
@@ -62,8 +61,6 @@ const int TempNast_Max = 250;
 
 int TempIzba1;
 int TimeoutIzba1;
-int TempIzba2;
-int TimeoutIzba2;
 int TempBase;
 int TempNast;
 int TempVonku, TimeoutVonku;
@@ -255,7 +252,7 @@ void vypisOstatne(void)
 
 
   long ii = millis() / (lcdUpdateTime_Period  * 2);
-  ii = ii % 3;
+  ii = ii % 2;
 
   switch (ii) {
     case 0:
@@ -264,6 +261,29 @@ void vypisOstatne(void)
       lcd.setCursor(7, 1);
       vypisLcdDecimal(TempBase);
 
+      break;
+
+    case 1:
+      lcd.setCursor(7, 0);
+      lcd.print(F("izba  "));
+      if ((long)(millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout)) {
+        lcd.setCursor(7, 1);
+        vypisLcdDecimal(TempIzba1);
+      }
+      else {
+        lcd.setCursor(7, 1);
+        vypisLcdNodata();
+      }
+
+      break;
+
+  }
+
+  ii = millis() / (lcdUpdateTime_Period  * 2);
+  ii = ii % 3;
+
+  switch (ii) {
+    case 0:
       lcd.setCursor(14, 2);
       lcd.print(F("kuren."));
       lcd.setCursor(14, 3);
@@ -281,17 +301,6 @@ void vypisOstatne(void)
       break;
 
     case 1:
-      lcd.setCursor(7, 0);
-      lcd.print(F("izba1 "));
-      if ((long)(millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout)) {
-        lcd.setCursor(7, 1);
-        vypisLcdDecimal(TempIzba1);
-      }
-      else {
-        lcd.setCursor(7, 1);
-        vypisLcdNodata();
-      }
-
       lcd.setCursor(14, 2);
       lcd.print(F("spiat."));
       lcd.setCursor(14, 3);
@@ -309,17 +318,6 @@ void vypisOstatne(void)
       break;
 
     case 2:
-      lcd.setCursor(7, 0);
-      lcd.print(F("izba2 "));
-      lcd.setCursor(7, 1);
-      if ((long)(millis() - rx433MHzAgainIzba2 < rx433MHzAgain_Timeout)) {
-        vypisLcdDecimal(TempIzba2);
-      }
-      else {
-        lcd.setCursor(7, 1);
-        vypisLcdNodata();
-      }
-
       lcd.setCursor(14, 2);
       lcd.print(F("bojler"));
       lcd.setCursor(14, 3);
@@ -337,7 +335,6 @@ void vypisOstatne(void)
       break;
 
   }
-
 }
 
 
@@ -432,7 +429,7 @@ void check433MHz(void) {
 #ifdef DEBUG
     Serial.println();
 #endif
-    //         Serial.print(F(" DEC: "));
+    //    Serial.print(F(" DEC: "));
     //    for (i = 0; i < buflen; i++)
     //    {
     //      Serial.print(buf[i], DEC);
@@ -450,11 +447,6 @@ void check433MHz(void) {
         TimeoutIzba1 = buf[11];
       }
 
-      if (buf[3] == '2') {
-        rx433MHzAgainIzba2 = millis();
-        TempIzba2 = convNumSigned(buf[4], buf[5]);
-        TimeoutIzba2 = buf[11];
-      }
     }
 
 
@@ -546,19 +538,17 @@ void checkNastTemp(void) {
     Serial.print (F("tmp_rEncGetValue= "));
     Serial.println(tmp_rEncGetValue);
 #endif
-    if (rEncGetButton() == 1) { //is the button pressed?
 
-      if (tmp_rEncGetValue == 1) {
-        TempNast--;
-      }
-
-      if (tmp_rEncGetValue == -1) {
-        TempNast++;
-      }
-
-      TempNast = constrain(TempNast, TempNast_Min, TempNast_Max);
-      vypisNastTemp();
+    if (tmp_rEncGetValue == 1) {
+      TempNast--;
     }
+
+    if (tmp_rEncGetValue == -1) {
+      TempNast++;
+    }
+
+    TempNast = constrain(TempNast, TempNast_Min, TempNast_Max);
+    vypisNastTemp();
   }
 }
 
@@ -774,7 +764,6 @@ void tx433MHz(void)
 #endif
   tx433MHzPacket(1);
   tx433MHzPacket(2);
-  tx433MHzPacket(3);
   led(LED_OFF);
 
 }
@@ -805,18 +794,6 @@ void tx433MHzPacket(unsigned int packetNum)
   }
 
   if (packetNum == 2) {
-    msg[4] = TempIzba2 / 10;
-    msg[5] = TempIzba2 % 10;
-
-    if ((long)(millis() - rx433MHzAgainIzba2 > rx433MHzAgain_Timeout)) {
-      msg[10] = 1;
-    }
-    else {
-      msg[10] = 0;
-    }
-  }
-
-  if (packetNum == 3) {
     msg[4] = TempBase / 10;
     msg[5] = TempBase % 10;
     msg[6] = TempNast / 10;
@@ -846,17 +823,8 @@ void setKotol(void)
 #endif
   }
 
-  tmp_base2 = TempIzba2;
-  if ((long)(millis() - rx433MHzAgainIzba2 > rx433MHzAgain_Timeout)) {
-    tmp_base2 = TempBase;
-#ifdef DEBUG
-    Serial.println(F("nebezi Izba2"));
-#endif
-  }
-
   //vyberie nizsiu teplotu z oboch senzorov, resp. nahrada za hlavny senzor
-  tmp_base = min(tmp_base1, tmp_base2); //vyssiu z oboch izieb
-  tmp_base = min(TempBase, tmp_base);  //porovnat aj s bazou
+  tmp_base = min(TempBase, tmp_base1);  //porovnat aj s bazou
 
 #ifdef DEBUG
   if (TempNast > tmp_base) {
