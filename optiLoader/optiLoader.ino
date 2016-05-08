@@ -114,7 +114,7 @@ void read_image(image_t *ip);
 /*
  * Table of defined images
  */
-image_t *images[] = {
+image_t const *images[] = {
   &image_328, &image_328p, &image_168, &image_8, 0
 };
 

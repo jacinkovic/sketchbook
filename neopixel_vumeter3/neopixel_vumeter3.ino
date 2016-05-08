@@ -1,7 +1,7 @@
 #include <Adafruit_NeoPixel.h>
 
 #define PIN 2   //D2
-#define NUM_NEOPIXEL 120  //120 velky   40 maly
+#define NUM_NEOPIXEL 40  //120 velky   40 maly
 int brightness = 100;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_NEOPIXEL, PIN, NEO_GRB + NEO_KHZ800);
@@ -10,12 +10,12 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_NEOPIXEL, PIN, NEO_GRB + NEO_KHZ
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
-const int analogReadsNum = 10;     //10
+const int analogReadsNum = 100;     //10 for 120, 100 for 40
 const int topSize = NUM_NEOPIXEL / 8;
 const int mediumSize = NUM_NEOPIXEL / 2 - topSize;
-const long inValDiv = 5;      //5
-const long peakSlow  = 1;     //10
-const long baseSlow  = 10;    //1
+const long inValDiv = 15;      //5 for 120, 15 for 40
+const long peakSlow  = 1;     //1 for 120
+const long baseSlow  = 10;    //10 for 120
 const int analogInPinL = A7;
 const int analogInPinR = A6;
 
@@ -56,12 +56,13 @@ void setup() {
   //#define CYCLECOLOR
 
   c_basetop = strip.Color( 255, 0, 0);
+  c_basetop = strip.Color( 0, 0, 255);
   //c_basetop = strip.Color( 255, 255, 255);
   c_basebody = strip.Color( 255, 255, 255);
   c_basebody = strip.Color( 255, 255, 255);
   c_basebody = strip.Color( 0, 255, 0);
   //c_basebody = strip.Color( 255, 0, 0);
-  //c_basebody = strip.Color( 0, 0, 255);
+  c_basebody = strip.Color( 0, 0, 255);
   //c_basetop = c_basebody;
   //c_basebody = strip.Color( 0, 255, 0);
   //c_peak = strip.Color( 255, 255, 255);
