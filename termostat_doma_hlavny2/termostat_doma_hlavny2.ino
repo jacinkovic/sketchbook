@@ -16,9 +16,16 @@
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
+/*
 const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  60 * 60000L;
+ const unsigned long Kotol_MinCasBehuKotla =  60 * 60000L;
+ const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
+ */
+
+const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  0 * 60000L;
 const unsigned long Kotol_MinCasBehuKotla =  60 * 60000L;
 const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
+
 unsigned long KotolCasZapnutia, KotolCasVypnutia = 0L;
 unsigned char KotolStatus, CerpadloStatus;
 
@@ -46,7 +53,7 @@ unsigned long tx433MHzUpdateTime = 0;
 const unsigned long TempBaseUpdateTime_Period = 60000L;
 unsigned long TempBaseUpdateTime = rx433MHzAgain_StartValue;
 
-const unsigned long rx433MHzAgain_Timeout = 5 * 60000L;
+const unsigned long rx433MHzAgain_Timeout = 15 * 60000L;
 unsigned long rx433MHzAgainIzba1 = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainVonku = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainSauna = rx433MHzAgain_StartValue;
@@ -199,7 +206,8 @@ void vypisKotol(void)
   lcd.setCursor(19, 0);
   if (KotolStatus == 1) {
     lcd.print(F("k"));
-  } else {
+  } 
+  else {
     lcd.print(F("_"));
   }
 
@@ -207,7 +215,8 @@ void vypisKotol(void)
   lcd.setCursor(18, 0);
   if (CerpadloStatus == 1) {
     lcd.print(F("c"));
-  } else {
+  } 
+  else {
     lcd.print(F("_"));
   }
 
@@ -224,7 +233,8 @@ void vypisOstatne(void)
   if ((long)(millis() - rx433MHzAgainVonku < rx433MHzAgain_Timeout)) {
     if (TimeoutVonku == 1) {
       vypisLcdNodata2();
-    } else {
+    } 
+    else {
       vypisLcdTempInt(TempVonku);
     }
   }
@@ -237,10 +247,12 @@ void vypisOstatne(void)
   if ((long)(millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout)) {
     if (TimeoutSauna == 1) {
       vypisLcdNodata2();
-    } else {
+    } 
+    else {
       if (SaunaTemp == -444) {
         lcd.print(F(" vyp "));
-      } else {
+      } 
+      else {
         vypisLcdTempInt(SaunaTemp);
       }
     }
@@ -255,27 +267,27 @@ void vypisOstatne(void)
   ii = ii % 2;
 
   switch (ii) {
-    case 0:
-      lcd.setCursor(7, 0);
-      lcd.print(F("chodba"));
+  case 0:
+    lcd.setCursor(7, 0);
+    lcd.print(F("chodba"));
+    lcd.setCursor(7, 1);
+    vypisLcdDecimal(TempBase);
+
+    break;
+
+  case 1:
+    lcd.setCursor(7, 0);
+    lcd.print(F("izba  "));
+    if ((long)(millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout)) {
       lcd.setCursor(7, 1);
-      vypisLcdDecimal(TempBase);
+      vypisLcdDecimal(TempIzba1);
+    }
+    else {
+      lcd.setCursor(7, 1);
+      vypisLcdNodata();
+    }
 
-      break;
-
-    case 1:
-      lcd.setCursor(7, 0);
-      lcd.print(F("izba  "));
-      if ((long)(millis() - rx433MHzAgainIzba1 < rx433MHzAgain_Timeout)) {
-        lcd.setCursor(7, 1);
-        vypisLcdDecimal(TempIzba1);
-      }
-      else {
-        lcd.setCursor(7, 1);
-        vypisLcdNodata();
-      }
-
-      break;
+    break;
 
   }
 
@@ -283,56 +295,59 @@ void vypisOstatne(void)
   ii = ii % 3;
 
   switch (ii) {
-    case 0:
-      lcd.setCursor(14, 2);
-      lcd.print(F("kuren."));
-      lcd.setCursor(14, 3);
-      if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
-        if (TimeoutRury == 1) {
-          vypisLcdNodata2();
-        } else {
-          vypisLcdTempInt(RuryKotolVystup);
-        }
-      }
+  case 0:
+    lcd.setCursor(14, 2);
+    lcd.print(F("kuren."));
+    lcd.setCursor(14, 3);
+    if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
+      if (TimeoutRury == 1) {
+        vypisLcdNodata2();
+      } 
       else {
-        vypisLcdNodata();
+        vypisLcdTempInt(RuryKotolVystup);
       }
+    }
+    else {
+      vypisLcdNodata();
+    }
 
-      break;
+    break;
 
-    case 1:
-      lcd.setCursor(14, 2);
-      lcd.print(F("spiat."));
-      lcd.setCursor(14, 3);
-      if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
-        if (TimeoutRury == 1) {
-          vypisLcdNodata2();
-        } else {
-          vypisLcdTempInt(RuryKotolSpiatocka);
-        }
-      }
+  case 1:
+    lcd.setCursor(14, 2);
+    lcd.print(F("spiat."));
+    lcd.setCursor(14, 3);
+    if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
+      if (TimeoutRury == 1) {
+        vypisLcdNodata2();
+      } 
       else {
-        vypisLcdNodata();
+        vypisLcdTempInt(RuryKotolSpiatocka);
       }
+    }
+    else {
+      vypisLcdNodata();
+    }
 
-      break;
+    break;
 
-    case 2:
-      lcd.setCursor(14, 2);
-      lcd.print(F("bojler"));
-      lcd.setCursor(14, 3);
-      if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
-        if (TimeoutRury == 1) {
-          vypisLcdNodata2();
-        } else {
-          vypisLcdTempInt(RuryBojlerVystup);
-        }
-      }
+  case 2:
+    lcd.setCursor(14, 2);
+    lcd.print(F("bojler"));
+    lcd.setCursor(14, 3);
+    if ((long)(millis() - rx433MHzAgainRury < rx433MHzAgain_Timeout)) {
+      if (TimeoutRury == 1) {
+        vypisLcdNodata2();
+      } 
       else {
-        vypisLcdNodata();
+        vypisLcdTempInt(RuryBojlerVystup);
       }
+    }
+    else {
+      vypisLcdNodata();
+    }
 
-      break;
+    break;
 
   }
 }
@@ -439,7 +454,7 @@ void check433MHz(void) {
 
 
     if ((buf[0] == 'T') && (buf[1] == 'H') &&
-        (buf[2] == 'S') && (buf[10] == 0)) {
+      (buf[2] == 'S') && (buf[10] == 0)) {
 
       if (buf[3] == '1') {
         rx433MHzAgainIzba1 = millis();
@@ -451,7 +466,7 @@ void check433MHz(void) {
 
 
     if ((buf[0] == 'T') && (buf[1] == 'H') &&
-        (buf[2] == 'E')) {
+      (buf[2] == 'E')) {
 
       if (buf[3] == '1') {
         rx433MHzAgainVonku = millis();
@@ -923,7 +938,8 @@ void led(byte value) {
 
 
 int getLight(void) {
-  return analogRead(Light_Pin);;
+  return analogRead(Light_Pin);
+  ;
 }
 
 
@@ -933,6 +949,7 @@ int freeRam()
   int v;
   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
+
 
 
 
