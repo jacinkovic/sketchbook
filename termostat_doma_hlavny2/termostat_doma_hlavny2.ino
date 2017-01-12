@@ -47,17 +47,18 @@ const unsigned char buflen_433MHz = 12;
 
 const unsigned long rx433MHzAgain_StartValue = 9999999L; //to get timeout on start
 
-const unsigned long tx433MHzUpdateTime_Period = 30000L;
+const unsigned long tx433MHzUpdateTime_Period = 60000L;
 unsigned long tx433MHzUpdateTime = 0;
 
 const unsigned long TempBaseUpdateTime_Period = 60000L;
 unsigned long TempBaseUpdateTime = rx433MHzAgain_StartValue;
 
-const unsigned long rx433MHzAgain_Timeout = 15 * 60000L;
+const unsigned long rx433MHzAgain_Timeout = 10 * 60000L;
 unsigned long rx433MHzAgainIzba1 = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainVonku = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainSauna = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainRury = rx433MHzAgain_StartValue;
+unsigned long rx433MHzAgainTime = rx433MHzAgain_StartValue;
 
 
 const unsigned long lcdUpdateTime_Period  = 1000L;
@@ -73,6 +74,7 @@ int TempNast;
 int TempVonku, TimeoutVonku;
 int SaunaTemp, TimeoutSauna;
 int RuryKotolVystup, RuryKotolSpiatocka, RuryBojlerVystup, TimeoutRury;
+int TimeHH, TimeMM, TimeSS, TimeoutTime;
 
 
 const unsigned char rEncPinA = 7;  // Connected to CLK on KY-040
@@ -80,6 +82,30 @@ const unsigned char rEncPinB = 8;  // Connected to DT on KY-040
 const unsigned char rEncPinButton = 9; // Connected to SW on KY-040
 unsigned char rEncValALast;
 unsigned char rEncValButtonLast;
+
+byte znak_ohrevcerp_off[8] = {
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B11111,
+  B11111,
+  B00000,
+};
+
+
+byte znak_cerp_on[8] = {
+  B00000,
+  B01110,
+  B01000,
+  B01110,
+  B00000,
+  B11111,
+  B11111,
+  B00000,
+};
+
 
 byte znak_ohrev_on[8] = {
   B01001,
@@ -91,19 +117,6 @@ byte znak_ohrev_on[8] = {
   B11111,
   B00000,
 };
-
-byte znak_ohrev_off[8] = {
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B11111,
-  B11111,
-  B00000,
-};
-
-
 
 
 
@@ -121,7 +134,9 @@ void setup()
   lcd.clear();
   lcd.backlight();
 
-  lcd.createChar(1, znak_ohrev_on);
+  lcd.createChar(0, znak_ohrevcerp_off);
+  lcd.createChar(1, znak_cerp_on);
+  lcd.createChar(2, znak_ohrev_on);
 
   lcd.setCursor(0, 0);
   lcd.print(F("starting ..."));
@@ -150,8 +165,8 @@ void setup()
   initKotol();
 
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print(F("nast."));
+  //lcd.setCursor(0, 0);
+  //lcd.print(F("nast."));
   lcd.setCursor(0, 2);
   lcd.print(F("vonku"));
   lcd.setCursor(7, 2);
@@ -203,25 +218,18 @@ void loop()
 void vypisKotol(void)
 {
 
-  lcd.setCursor(19, 0);
+  lcd.setCursor(0, 0);
   if (KotolStatus == 1) {
-    lcd.print(F("k"));
+    lcd.write(byte(2));
+  } 
+  else if (CerpadloStatus == 1) {
+    lcd.write(byte(1));
   } 
   else {
-    lcd.print(F("_"));
+    //lcd.write(byte(0));
+    //lcd.print(F("_"));
+    lcd.print(F(" "));
   }
-
-
-  lcd.setCursor(18, 0);
-  if (CerpadloStatus == 1) {
-    lcd.print(F("c"));
-  } 
-  else {
-    lcd.print(F("_"));
-  }
-
-  //lcd.setCursor(16, 1);
-  //lcd.print(getLight());
 
 }
 
@@ -229,6 +237,20 @@ void vypisKotol(void)
 
 void vypisOstatne(void)
 {
+  lcd.setCursor(15, 0);
+  if ((long)(millis() - rx433MHzAgainTime < rx433MHzAgain_Timeout)) {
+    if (TimeoutTime == 1) {
+      vypisLcdNodata2();
+    } 
+    else {
+      vypisLcdTime();
+    }
+  }
+  else {
+    vypisLcdNodata();
+  }
+
+
   lcd.setCursor(0, 3);
   if ((long)(millis() - rx433MHzAgainVonku < rx433MHzAgain_Timeout)) {
     if (TimeoutVonku == 1) {
@@ -487,6 +509,15 @@ void check433MHz(void) {
         RuryBojlerVystup = convNumSigned(buf[8], buf[9]);
         TimeoutRury = buf[10];
       }
+
+      if (buf[3] == '4') {
+        rx433MHzAgainTime = millis();
+        TimeHH = buf[4];
+        TimeMM = buf[5];
+        TimeSS = buf[6];
+        TimeoutTime = buf[10];
+      }
+
     }
 
     led(LED_OFF);
@@ -743,9 +774,9 @@ void vypisLcdTempInt(int input) {
 }
 
 
-void vypisNastTemp(void) {
 
-  lcd.setCursor(0, 1);
+void vypisNastTemp(void) {
+  lcd.setCursor(1, 0);
   if (TempNast < 100) {
     lcd.print(F(" "));
   }
@@ -753,6 +784,20 @@ void vypisNastTemp(void) {
   lcd.print(F("."));
   lcd.print(TempNast % 10);
   lcd.write(B11011111); //stupen
+}
+
+
+void vypisLcdTime(void) {
+  //lcd.print(F(" "));
+  if (TimeHH < 10) {
+    lcd.print(F(" "));
+  }
+  lcd.print(TimeHH);
+  lcd.print(F(":"));
+  if (TimeMM < 10) {
+    lcd.print(F("0"));
+  }
+  lcd.print(TimeMM);
 }
 
 
@@ -768,6 +813,7 @@ void vypisLcdNodata2(void) {
 void vypisLcdNodata3(void) {
   lcd.print(F("     "));
 }
+
 
 
 
@@ -949,6 +995,9 @@ int freeRam()
   int v;
   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
+
+
+
 
 
 
