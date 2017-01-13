@@ -24,8 +24,8 @@ const unsigned long rx433MHzAgain_StartValue = 9999999L; //to get timeout on sta
 
 
 //how often are data transmitted to thermostat base
-const unsigned long tx433MHzUpdate_Period = 1 * 60000;
-unsigned long tx433MHzUpdate;
+//const unsigned long tx433MHzUpdate_Period = 1 * 60000;
+//unsigned long tx433MHzUpdate;
 
 //timeout for receiving data from pc server
 const unsigned long rxEthPacket_Timeout = 10 * 60000;
@@ -80,18 +80,20 @@ void loop()
 
   checkEth();
 
-  if (millis() - tx433MHzUpdate > tx433MHzUpdate_Period) {
+
+/* removed as tx is performed immediately after eth receive
+if (millis() - tx433MHzUpdate > tx433MHzUpdate_Period) {
     tx433MHzUpdate = millis() + random(1000);
 
     tx433MHz();
     //Serial.print(F("freeRam=")); Serial.println(freeRam());
   }
-
+*/
 
 }
 
 
-
+/*
 void tx433MHz(void)
 {
   //Serial.println(F("tx433MHzUpdate();"));
@@ -109,7 +111,7 @@ void tx433MHz(void)
   led(LED_OFF);
   //Serial.println();
 }
-
+*/
 
 
 void tx433MHzUpdate_packet(byte packetNum)
@@ -157,8 +159,11 @@ void tx433MHzUpdate_packet(byte packetNum)
     msg[10] = 1;
   }
 
+  led(LED_ON);
   vw_send((uint8_t *)msg, buflen_433MHz);
   vw_wait_tx(); // Wait until the whole message is gone
+  led(LED_OFF);
+
 }
 
 
@@ -350,10 +355,16 @@ void extractOneValuefromparams(unsigned char valueIndex)
         if (valueIndex == 0) {
           TempVonku = value;
           rxEthPacket[1] = millis();
+          
+          //send immediately to thermostat_base immediately after receiving from pc
+          tx433MHzUpdate_packet(1);
         }
         if (valueIndex == 1) {
           SaunaTemp = value;
           rxEthPacket[2] = millis();
+
+          //send immediately to thermostat_base immediately after receiving from pc
+          tx433MHzUpdate_packet(2);
         }
 
         if (valueIndex == 2) {
@@ -365,6 +376,9 @@ void extractOneValuefromparams(unsigned char valueIndex)
         if (valueIndex == 4) {
           RuryBojlerVystup = value;
           rxEthPacket[3] = millis();
+
+          //send immediately to thermostat_base immediately after receiving from pc
+          tx433MHzUpdate_packet(3);
         }
 
         if (valueIndex == 5) {
