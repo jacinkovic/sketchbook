@@ -18,32 +18,31 @@
 #define ReceiverPin 2
 
 const int VBatPin = A0;
-const int UVIndexPin = A7;
-const int BH1750address = 0x23;
-const int SoilMoisturePin = A1;
-const int SoilTemp_DS18S20_Pin = 5; //DS18S20 Signal pin on digital 5
 const int TempOut2_DS18S20_Pin = 6;
 
 //const unsigned long SendMirf_FirstTime = 300 *1000L; ////first data will be send 5 minutes after start, in ms
 const unsigned long SendMirf_FirstTime = 1 *1000L; ////first data will be send 5 minutes after start, in ms
-
-const unsigned long Rec_Timeout_Limit = 30 *60L; //in minutes
 const unsigned long SendMirf_TimePeriod = 15 *1000L; //in ms
-const unsigned long wdt_TimePeriod = 1 *1000L; //in ms
-const unsigned long wdt_TimePeriodReset = 86400 *1000L; //in sec
+
+const unsigned long Watchdog_TimePeriod = 1 *1000L; //in ms
+//const unsigned long Watchdog_TimePeriodReset = 86400 *1000L; //in sec
 
 
-unsigned long time;
-unsigned long rec_time_TempHumid=-Rec_Timeout_Limit;
-unsigned long rec_time_WindAverage=-Rec_Timeout_Limit;
-unsigned long rec_time_WindDirectionGust=-Rec_Timeout_Limit;
-unsigned long rec_time_Rain=-Rec_Timeout_Limit;
+//timeout for receiving data from thermostat base
+const unsigned long Rec_Timeout_Limit = 15 * 60000L;  //timeout for messages from Auriol
+const unsigned long Rec_Timeout_StartValue = 99999999L; //to get timeout on start
+
+unsigned long rec_time_TempHumid = Rec_Timeout_StartValue;
+unsigned long rec_time_WindAverage = Rec_Timeout_StartValue;
+unsigned long rec_time_WindDirectionGust = Rec_Timeout_StartValue;
+unsigned long rec_time_Rain = Rec_Timeout_StartValue;
+
 int recTimeoutStat;
 const int Mirf_NUM_PACKETS = 5;
 const int Mirf_payload = 16;
 byte mirf_data[Mirf_payload];    
-unsigned long SendMirf_TimeAgain = 0;
-unsigned long wdt_TimeAgain = 0;
+unsigned long SendMirf_UpdateTime = 0;
+unsigned long Watchdog_UpdateTime = 0;
 long testcounter;
 
 
@@ -62,15 +61,9 @@ float rain;
 float rain_initialshift = -1;
 
 float VBat;
-float UVIndex;
-uint16_t Light;
-byte BH1750buff[2];
-float SoilMoisture;
-float SoilTemp;
 float TempOut2;
 
 
-OneWire ds_SoilTemp(SoilTemp_DS18S20_Pin); 
 OneWire ds_TempOut2(TempOut2_DS18S20_Pin);
 
 // ---------------------------------------------------------------------------------------
@@ -80,8 +73,6 @@ void setup() {
 
   pinMode(VBatPin, INPUT);
   pinMode(ReceiverPin, INPUT);
-  pinMode(UVIndexPin, INPUT);
-  pinMode(SoilMoisture, INPUT);
 
   Wire.begin();
 
@@ -97,7 +88,6 @@ void setup() {
 
   //first read to prepare sensors
   getTempOut2();
-  getSoilTemp();  
   //end of first read
 
 
@@ -106,7 +96,7 @@ void setup() {
   Serial.println(F("MeteoBase is running ..."));
 
   //initialisation
-  SendMirf_TimeAgain = millis() + SendMirf_FirstTime; 
+  SendMirf_UpdateTime = SendMirf_FirstTime; 
   recTimeoutStat = 15;
   //end
 
@@ -115,8 +105,6 @@ void setup() {
 
 void loop()
 {
-  time = millis();
-
   //read weatherstation radio signal
   int ret_code = RCode();
   //decode weatherstation radio signal
@@ -131,16 +119,12 @@ void loop()
   }
 
   //send measured data to home
-  if(time > SendMirf_TimeAgain)  
+  if ((long)(millis() - SendMirf_UpdateTime > SendMirf_TimePeriod))   
   {
     wdt_reset();
-    SendMirf_TimeAgain = time + SendMirf_TimePeriod;
+    SendMirf_UpdateTime = millis();
     getVBat();
-    getUVIndex();
-    getLight();
-    getSoilMoisture();
     getTempOut2();
-    getSoilTemp(); 
     testcounter = millis() / 1000; 
     SendMirf();   
     getRecTimeoutStat();
@@ -149,18 +133,20 @@ void loop()
 
 
   //watchdog 
-  if(time > wdt_TimeAgain)  
+  if ((long)(millis() - Watchdog_UpdateTime > Watchdog_TimePeriod))   
+  //if(millis() > Watchdog_UpdateTime)  
   {
     wdt_reset();
-    wdt_TimeAgain = time + wdt_TimePeriod;
+    Watchdog_UpdateTime = millis();
     //Serial.print(".");  
 
     //reset vzdy po nastavenom case
-    if(time > wdt_TimePeriodReset)  
-    {
-      Serial.println(F("wdt_TimePeriodReset!"));
-      while(1);
-    }
+    /*    if(millis() > Watchdog_TimePeriodReset)  
+     {
+     Serial.println(F("Watchdog_TimePeriodReset!"));
+     while(1);
+     }
+     */
   }
 }
 
@@ -169,24 +155,25 @@ void loop()
 
 void getRecTimeoutStat(void)  //check timeout for received data from Auriol
 {
-  unsigned long tmp_time = time / 1000;
-  recTimeoutStat = 0;
+  recTimeoutStat = 15;
 
-  if(tmp_time - rec_time_TempHumid > Rec_Timeout_Limit){ 
-    recTimeoutStat = recTimeoutStat + 8;
+  if ((long)(millis() - rec_time_TempHumid < Rec_Timeout_Limit)){
+    recTimeoutStat = recTimeoutStat - 8;
   }
-  if(tmp_time - rec_time_WindAverage > Rec_Timeout_Limit){ 
-    recTimeoutStat = recTimeoutStat + 4;
+  if ((long)(millis() - rec_time_WindAverage < Rec_Timeout_Limit)){
+    recTimeoutStat = recTimeoutStat - 4;
   }
-  if(tmp_time - rec_time_WindDirectionGust > Rec_Timeout_Limit){ 
-    recTimeoutStat = recTimeoutStat + 2;
+  if ((long)(millis() - rec_time_WindDirectionGust < Rec_Timeout_Limit)){
+    recTimeoutStat = recTimeoutStat - 2;
   }
-  if(tmp_time - rec_time_Rain > Rec_Timeout_Limit){ 
-    recTimeoutStat = recTimeoutStat + 1;
+  if ((long)(millis() - rec_time_Rain < Rec_Timeout_Limit)){
+    recTimeoutStat = recTimeoutStat - 1;
   }
 
-  //  Serial.print(" recTimeoutStat=");
-  //  Serial.println(recTimeoutStat);  
+  //Serial.print(" recTimeoutStat=");
+  //Serial.println(recTimeoutStat);  
+  
+  //recTimeoutStat = 0;
 }
 
 
@@ -216,14 +203,6 @@ void SendMirf_packet(int index)
   }
 
   fillMirfPacket(index);
-
-  //kontrolny sucet predosla verzia
-  //  mirf_data_checksum = 0; 
-  //  for (i = 0; i < Mirf.payload-1; i++) {
-  //    mirf_data_checksum = mirf_data_checksum + mirf_data[i];
-  //  }
-  //  mirf_data[Mirf.payload-1] = mirf_data_checksum;
-
 
   //kontrolny sucet
   byte crc = 0x00;
@@ -302,29 +281,29 @@ void fillMirfPacket(int index){
     mirf_data[2] = breakDownFloat(2, TempOut2);     
     mirf_data[3] = breakDownFloat(1, TempOut2);     
     mirf_data[4] = breakDownFloat(0, TempOut2);     
-    mirf_data[5] = breakDownFloat(3, UVIndex);     
-    mirf_data[6] = breakDownFloat(2, UVIndex);     
-    mirf_data[7] = breakDownFloat(1, UVIndex);     
-    mirf_data[8] = breakDownFloat(0, UVIndex);     
-    mirf_data[9] = breakDownFloat(3, Light);  
-    mirf_data[10] = breakDownFloat(2, Light);  
-    mirf_data[11] = breakDownFloat(1, Light);  
-    mirf_data[12] = breakDownFloat(0, Light);  
+    mirf_data[5] = breakDownFloat(3, batt_combsensor);  
+    mirf_data[6] = breakDownFloat(2, batt_combsensor);  
+    mirf_data[7] = breakDownFloat(1, batt_combsensor);  
+    mirf_data[8] = breakDownFloat(0, batt_combsensor);  
+    mirf_data[9] = breakDownFloat(3, batt_raingauge);  
+    mirf_data[10] = breakDownFloat(2, batt_raingauge);  
+    mirf_data[11] = breakDownFloat(1, batt_raingauge);  
+    mirf_data[12] = breakDownFloat(0, batt_raingauge);  
   }  
 
   if(index==4){
-    mirf_data[1] = breakDownFloat(3, SoilMoisture);     
-    mirf_data[2] = breakDownFloat(2, SoilMoisture);     
-    mirf_data[3] = breakDownFloat(1, SoilMoisture);     
-    mirf_data[4] = breakDownFloat(0, SoilMoisture);     
-    mirf_data[5] = breakDownFloat(3, SoilTemp);     
-    mirf_data[6] = breakDownFloat(2, SoilTemp);     
-    mirf_data[7] = breakDownFloat(1, SoilTemp);     
-    mirf_data[8] = breakDownFloat(0, SoilTemp);     
-    mirf_data[9] = breakDownFloat(3, batt_combsensor * 2 + batt_raingauge);  
-    mirf_data[10] = breakDownFloat(2, batt_combsensor * 2 + batt_raingauge);  
-    mirf_data[11] = breakDownFloat(1, batt_combsensor * 2 + batt_raingauge);  
-    mirf_data[12] = breakDownFloat(0, batt_combsensor * 2 + batt_raingauge);  
+    mirf_data[1];
+    mirf_data[2];
+    mirf_data[3];
+    mirf_data[4];
+    mirf_data[5];
+    mirf_data[6];
+    mirf_data[7];
+    mirf_data[8];
+    mirf_data[9];
+    mirf_data[10];
+    mirf_data[11];
+    mirf_data[12];
   }  
 
   if(index==5){
@@ -385,6 +364,8 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   output_f = output_f / 100;
   return output_f;
 }
+
+
 
 
 

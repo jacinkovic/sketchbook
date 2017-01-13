@@ -305,7 +305,7 @@ void getTempHumid(void)
       //button
       tempOutButton=(code.charAt(11)=='1'?1:0);
 
-      rec_time_TempHumid = millis() / 1000;
+      rec_time_TempHumid = millis();
 
       //      Serial.print(F(" tempOutButton="));
       //      Serial.println(tempOutButton);
@@ -357,7 +357,7 @@ void getWindAverage(void)
       //button
       windButton=(code.charAt(11)=='1'?1:0);
 
-      rec_time_WindAverage = millis() / 1000;
+      rec_time_WindAverage = millis();
 
       //      Serial.print(F(" windButton="));
       //      Serial.println(windButton);
@@ -408,7 +408,7 @@ void getWindDirectionGust(void)
       //button
       windButton=(code.charAt(11)=='1'?1:0);
 
-      rec_time_WindDirectionGust = millis() / 1000;
+      rec_time_WindDirectionGust = millis();
 
       //      Serial.print(F(" batt_combsensor="));
       //      Serial.println(batt_combsensor);
@@ -459,7 +459,7 @@ void getRain(void)
       //battery state
       batt_raingauge=(code.charAt(8)=='1'?1:0)*1;
 
-      rec_time_Rain = millis() / 1000;
+      rec_time_Rain = millis();
 
       //substract initial rain value
       if(rain_initialshift == -1){
@@ -510,68 +510,6 @@ void getVBat()
 }
 
 
-void getUVIndex()
-{
-  float Vcc = readVcc();
-  delay(2);
-  float volt = analogRead(UVIndexPin);
-  volt = (volt / 1023.0) * Vcc; // only correct if Vcc = 5.0 volts
-
-  UVIndex = volt;  
-}
-
-
-void getSoilMoisture()
-{
-  float Vcc = readVcc();
-  delay(2);
-  float volt = analogRead(SoilMoisturePin);
-  volt = (volt / 1023.0) * Vcc; // only correct if Vcc = 5.0 volts
-
-  SoilMoisture = volt;  
-}
-
-
-
-void getLight()
-{
-  delay(10);
-  BH1750_Init(BH1750address);
-  delay(200);
-  if(2 == BH1750_Read(BH1750address))
-  {
-    Light = ((BH1750buff[0]<<8)|BH1750buff[1]);
-    if((BH1750buff[0] == 255) && (BH1750buff[1] == 255)){ 
-      Light = 65535; 
-    } 
-    Light = Light / 1.2;
-  }
-}
-
-
-int BH1750_Read(int address) //
-{
-  int i=0; 
-
-  Wire.beginTransmission(address);
-  Wire.requestFrom(address, 2);
-  while(Wire.available()) //
-  {
-    BH1750buff[i] = Wire.read();  // receive one byte
-    i++;
-  }
-  Wire.endTransmission();
-  return i;
-}
-
-
-
-void BH1750_Init(int address)
-{
-  Wire.beginTransmission(address);
-  Wire.write(0x10);//1lx resolution 120ms
-  Wire.endTransmission();
-}
 
 
 
@@ -634,59 +572,6 @@ float getTempOut2(){
 }
 
 
-float getSoilTemp(){
-  //returns the temperature from one DS18S20 in DEG Celsius
-
-  byte data[12];
-  byte addr[8];
-
-  if ( !ds_SoilTemp.search(addr)) {
-    //no more sensors on chain, reset search
-    ds_SoilTemp.reset_search();
-    //Serial.println(F("no more sensors on chain, reset search!"));
-    return -1000;
-  }
-
-  if ( OneWire::crc8( addr, 7) != addr[7]) {
-    //Serial.println(F("CRC is not valid!"));
-    return -1000;
-  }
-
-  if ( addr[0] != 0x10 && addr[0] != 0x28) {
-    //Serial.print(F("Device is not recognized"));
-    return -1000;
-  }
-
-  ds_SoilTemp.reset();
-  ds_SoilTemp.select(addr);
-  ds_SoilTemp.write(0x44); // start conversion
-
-  byte present = ds_SoilTemp.reset();
-  ds_SoilTemp.select(addr);
-  ds_SoilTemp.write(0xBE); // Read Scratchpad
-
-
-  for (int i = 0; i < 9; i++) { // we need 9 bytes
-    data[i] = ds_SoilTemp.read();
-  }
-
-  ds_SoilTemp.reset_search();
-
-  byte MSB = data[1];
-  byte LSB = data[0];
-
-  float tempRead = ((MSB << 8) | LSB); //using two's compliment
-  float TemperatureSum = tempRead / 16;
-
-  if (data[8] != OneWire::crc8(data,8)) {
-    Serial.print(F("ERROR: CRC didn't match\n"));
-    return -1000;
-  }
-
-  SoilTemp = TemperatureSum;
-
-  return TemperatureSum;
-}
 
 
 
@@ -714,16 +599,6 @@ void SerialAll ()
 
   Serial.print(F("  TempOut2="));
   Serial.print(TempOut2);
-  Serial.print(F(", UVIndex="));
-  Serial.print(UVIndex);
-  Serial.print(F(", Light="));
-  Serial.println(Light);
-
-
-  Serial.print(F("  SoilMoisture="));
-  Serial.print(SoilMoisture);
-  Serial.print(F(", SoilTemp="));
-  Serial.println(SoilTemp);
 
   Serial.print(F("  batt_combsensor="));
   Serial.print(batt_combsensor);
