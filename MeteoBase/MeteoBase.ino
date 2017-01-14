@@ -146,7 +146,7 @@ void loop()
   {
     wdt_reset();
     Watchdog_UpdateTime = millis();
-    //Serial.print(".");  
+    Serial.println(F("."));  
 
     //reset vzdy po nastavenom case
     /*    if(millis() > Watchdog_TimePeriodReset)  
@@ -178,10 +178,6 @@ void getRecTimeoutStat(void)  //check timeout for received data from Auriol
     recTimeoutStat = recTimeoutStat - 1;
   }
 
-  //Serial.print(" recTimeoutStat=");
-  //Serial.println(recTimeoutStat);  
-
-  //recTimeoutStat = 0;
 }
 
 
@@ -190,7 +186,7 @@ void SendMirf(){
   wdt_reset();
   Serial.println(F("SendMirf"));
   for(int i=1; i<=Mirf_NUM_PACKETS; i++){
-    for(int ii=0; ii<20; ii++){ //repeat transfer x times
+    for(int ii=0; ii<1; ii++){ //repeat transfer x times
       SendMirf_packet(i);  //send each packet
       delay(2);
     }  
@@ -238,7 +234,7 @@ void SendMirf_packet(int index)
 
 
   //  for (i = 0; i < 16; i++) {
-  //    Serial.print(" ");
+  //    Serial.print(F(" "));
   //    Serial.print(mirf_data[i], DEC);
   //  }
   //  Serial.println();
