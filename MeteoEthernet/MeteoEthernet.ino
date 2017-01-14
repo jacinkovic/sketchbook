@@ -94,6 +94,15 @@ void setup(){
 
   Serial.begin(115200);
 
+  Serial.println(); 
+  Serial.print(F("Code "));
+  Serial.print(F(__FILE__));   
+  Serial.print(F(" built at: "));   
+  Serial.print(F(__DATE__)); 
+  Serial.print(F(" "));   
+  Serial.println(F(__TIME__));
+  Serial.println(F("setup();"));
+  
   //bmp085
   //Serial.println("bmp085 initialisation ");   
   Wire.begin();
@@ -117,10 +126,7 @@ void setup(){
 
   wdt_reset();
 
-  Serial.println(); 
-  Serial.println();
-  Serial.println("MeteoEthernet is running ...");   
-
+  Serial.println(F("loop();"));   
 
 }
 
@@ -131,7 +137,7 @@ void loop(){
   if (Mirf.dataReady()){
     Mirf.getData((byte *) &mirf_data);
 
-    Serial.print("Mirf received ");
+    Serial.print(F("Mirf received "));
 
     //    for (i = 0; i < Mirf.payload; i++) {
     //      Serial.print(" ");
@@ -183,14 +189,14 @@ void loop(){
       if(mirf_data[0] == 3)
       {
         TempOut2 = buildUpFloat(mirf_data[1], mirf_data[2], mirf_data[3], mirf_data[4]);
-        //UVindex = buildUpFloat(mirf_data[5], mirf_data[6], mirf_data[7], mirf_data[8]);
-        //Light = buildUpFloat(mirf_data[9], mirf_data[10], mirf_data[11], mirf_data[12]);
+        batt_combsensor = buildUpFloat(mirf_data[5], mirf_data[6], mirf_data[7], mirf_data[8]);
+        batt_raingauge = buildUpFloat(mirf_data[9], mirf_data[10], mirf_data[11], mirf_data[12]);
       }
 
       if(mirf_data[0] == 4)
       {
-        batt_combsensor = buildUpFloat(mirf_data[1], mirf_data[2], mirf_data[3], mirf_data[4]);
-        batt_raingauge = buildUpFloat(mirf_data[5], mirf_data[6], mirf_data[7], mirf_data[8]);
+        //batt_combsensor = buildUpFloat(mirf_data[1], mirf_data[2], mirf_data[3], mirf_data[4]);
+        //batt_raingauge = buildUpFloat(mirf_data[5], mirf_data[6], mirf_data[7], mirf_data[8]);
         //int batt_tmp = buildUpFloat(mirf_data[9], mirf_data[10], mirf_data[11], mirf_data[12]);
         //batt_combsensor = batt_tmp / 2;
         //batt_raingauge = batt_tmp - batt_combsensor * 2;
@@ -208,14 +214,14 @@ void loop(){
       if((mirf_data[0]>=1) && (mirf_data[0]<=Mirf_NUM_PACKETS)){
         DataReady_packet[mirf_data[0]] = 1;
         DataReady_packet_TimeAgain[mirf_data[0]] = time + DataReady_packet_TimePeriod;     
-        Serial.print("packet "); 
+        Serial.print(F("packet ")); 
         Serial.print(mirf_data[0]); 
-        Serial.print(" ");
+        Serial.print(F(" "));
       } 
-      Serial.println("checksum ok"); 
+      Serial.println(F("checksum ok")); 
     }
     else{
-      Serial.println("checksum failed!");
+      Serial.println(F("checksum failed!"));
     }
 
     //    for (i = 0; i < Mirf.payload; i++){ 
@@ -232,7 +238,7 @@ void loop(){
 
     bfill = ether.tcpOffset();
 
-    Serial.print("Ethernet ");  
+    Serial.print(F("Ethernet "));  
     bfill.emit_p(PSTR("HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nPragma: no-cache\r\n\r\n"));
 
 
@@ -312,7 +318,7 @@ void loop(){
         recTimeoutStat_tmp = recTimeoutStat_tmp -1; 
       }
       Serial.println();
-      Serial.println(" ERR: Sensor Timeout");
+      Serial.println(F(" ERR: Sensor Timeout"));
     }
 
     if ((DataReady_packet[1] != 1) || 
@@ -333,13 +339,13 @@ void loop(){
 
       }
       Serial.println();
-      Serial.println(" ERR: Transfer Timeout");
+      Serial.println(F(" ERR: Transfer Timeout"));
     }
 
 
     ether.httpServerReply(bfill.position()) ;
     EtherQueryLast = time + EtherQueryTimeout;
-    Serial.println("sent");      
+    Serial.println(F("sent"));      
   }
 
 
@@ -559,43 +565,43 @@ void addFloatTobfill(float in)
 
 void SerialAll(void)
 {
-  Serial.print("  tempOut=");
+  Serial.print(F("  tempOut="));
   Serial.print(tempOut);
-  Serial.print(", humidOut=");
+  Serial.print(F(", humidOut="));
   Serial.print(humidOut);
-  Serial.print(", rain=");
+  Serial.print(F(", rain="));
   Serial.println(rain);
 
-  Serial.print("  windDir=");
+  Serial.print(F("  windDir="));
   Serial.print(windDir);
-  Serial.print(", windGust="); 
+  Serial.print(F(", windGust=")); 
   Serial.print(windGust);
-  Serial.print(", windAvg=");
+  Serial.print(F(", windAvg="));
   Serial.println(windAvg);
 
 
-  Serial.print("  TempOut2=");
+  Serial.print(F("  TempOut2="));
   Serial.print(TempOut2);
-  
-  Serial.print("  batt_combsensor=");
+
+  Serial.print(F("  batt_combsensor="));
   Serial.print(batt_combsensor);
-  Serial.print(", batt_raingauge=");
+  Serial.print(F(", batt_raingauge="));
   Serial.println(batt_raingauge);
 
-  Serial.print("  recTimeoutStat=");
+  Serial.print(F("  recTimeoutStat="));
   Serial.print(recTimeoutStat);  
-  Serial.print(", testcounter=");
+  Serial.print(F(", testcounter="));
   Serial.print(testcounter);
-  Serial.print(", VBat=");
+  Serial.print(F(", VBat="));
   Serial.println(VBat);  
 
 
-  Serial.print(" bmp085temperature=");
+  Serial.print(F(" bmp085temperature="));
   Serial.print(bmp085temperature);
-  Serial.print(", bmp085pressure=");
+  Serial.print(F(", bmp085pressure="));
   Serial.println(bmp085pressure);
 
-  Serial.print(" EtherTimeout=");
+  Serial.print(F(" EtherTimeout="));
   long tmp = (EtherQueryLast - time) / 1000;
   Serial.println(tmp);  
 
@@ -665,6 +671,8 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   output_f = output_f / 100;
   return output_f;
 }
+
+
 
 
 
