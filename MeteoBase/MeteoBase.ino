@@ -77,6 +77,16 @@ void setup() {
   Wire.begin();
 
   Serial.begin(115200);
+
+  Serial.println(); 
+  Serial.print(F("Code "));
+  Serial.print(F(__FILE__));   
+  Serial.print(F(" built at: "));   
+  Serial.print(F(__DATE__)); 
+  Serial.print(F(" "));   
+  Serial.println(F(__TIME__));
+  Serial.println(F("setup();"));   
+
   delay(2);
 
   Mirf.spi = &MirfHardwareSpi;
@@ -91,9 +101,7 @@ void setup() {
   //end of first read
 
 
-  Serial.println(); 
-  Serial.println();
-  Serial.println(F("MeteoBase is running ..."));
+  Serial.println(F("loop();"));
 
   //initialisation
   SendMirf_UpdateTime = SendMirf_FirstTime; 
@@ -134,7 +142,7 @@ void loop()
 
   //watchdog 
   if ((long)(millis() - Watchdog_UpdateTime > Watchdog_TimePeriod))   
-  //if(millis() > Watchdog_UpdateTime)  
+    //if(millis() > Watchdog_UpdateTime)  
   {
     wdt_reset();
     Watchdog_UpdateTime = millis();
@@ -172,7 +180,7 @@ void getRecTimeoutStat(void)  //check timeout for received data from Auriol
 
   //Serial.print(" recTimeoutStat=");
   //Serial.println(recTimeoutStat);  
-  
+
   //recTimeoutStat = 0;
 }
 
@@ -364,6 +372,7 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   output_f = output_f / 100;
   return output_f;
 }
+
 
 
 
