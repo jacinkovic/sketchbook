@@ -2,9 +2,15 @@
 #include <Mirf.h>
 #include <nRF24L01.h>
 #include <MirfHardwareSpiDriver.h>
-#include <EtherCard.h>   //old library, but works with Mirf
 #include <Wire.h>
 #include <avr/wdt.h>
+
+#define ETH_ON       //uncomment if ETH have to be ON
+
+#ifdef ETH_ON
+#include <EtherCard.h>   //old library, but works with Mirf
+#endif
+
 
 unsigned long time;
 const unsigned long DataReady_packet_TimePeriod = 10 *60 *1000L; //MIRF connection timeout 10 minutes in ms
@@ -37,6 +43,7 @@ long testcounter;
 int windDirAvg= -1;
 const int windDirAvg_Deg = 5;  //avg step in degrees
 
+#ifdef ETH_ON
 // ethernet interface mac address
 static byte mymac[] = { 
   0x74,0x69,0x69,0x2D,0x30,0x32 };
@@ -50,6 +57,7 @@ static byte gwip[] = {
 byte Ethernet::buffer[500]; // tcp/ip send and receive buffer
 BufferFiller bfill;
 char buff[12];
+#endif
 
 const long EtherQueryTimeout = 10 * 60 * 1000L;
 unsigned long EtherQueryLast;
@@ -102,7 +110,7 @@ void setup(){
   Serial.print(F(" "));   
   Serial.println(F(__TIME__));
   Serial.println(F("setup();"));
-  
+
   //bmp085
   //Serial.println("bmp085 initialisation ");   
   Wire.begin();
@@ -114,8 +122,16 @@ void setup(){
   Mirf.payload = 16;
   Mirf.config();
 
+#ifdef ETH_ON
   ether.begin(sizeof Ethernet::buffer, mymac);
   ether.staticSetup(myip);
+  Serial.println(F("ethernet on"));
+#endif
+
+#ifndef ETH_ON
+  Serial.println(F("ethernet off"));
+#endif
+
 
   EtherQueryLast = time + EtherQueryTimeout;
 
@@ -135,21 +151,16 @@ void loop(){
 
   //MIRF PART      
   if (Mirf.dataReady()){
-    Mirf.getData((byte *) &mirf_data);
+    Serial.print(F("Mirf "));
 
-    Serial.print(F("Mirf received "));
-
-    //    for (i = 0; i < Mirf.payload; i++) {
-    //      Serial.print(" ");
-    //      Serial.print(mirf_data[i], DEC);
-    //    }    
-    //    Serial.println();
-
-    //kontrolny sucet predosla verzia
-    //    mirf_data_checksum = 0; 
-    //    for (i = 0; i < Mirf.payload-1; i++) {
-    //      mirf_data_checksum = mirf_data_checksum + mirf_data[i];
-    //    }
+    Mirf.getData((byte *) &mirf_data);    
+    /*
+    for (i = 0; i < Mirf.payload; i++) {
+     Serial.print(" ");
+     Serial.print(mirf_data[i], DEC);
+     }    
+     Serial.println();
+     */
 
     //kontrolny sucet
     byte crc = 0x00;
@@ -214,14 +225,14 @@ void loop(){
       if((mirf_data[0]>=1) && (mirf_data[0]<=Mirf_NUM_PACKETS)){
         DataReady_packet[mirf_data[0]] = 1;
         DataReady_packet_TimeAgain[mirf_data[0]] = time + DataReady_packet_TimePeriod;     
-        Serial.print(F("packet ")); 
+        Serial.print(F("pack ")); 
         Serial.print(mirf_data[0]); 
         Serial.print(F(" "));
       } 
-      Serial.println(F("checksum ok")); 
+      Serial.println(F("crc ok")); 
     }
     else{
-      Serial.println(F("checksum failed!"));
+      Serial.println(F("crc err"));
     }
 
     //    for (i = 0; i < Mirf.payload; i++){ 
@@ -231,6 +242,7 @@ void loop(){
   }
 
 
+#ifdef ETH_ON
   //ETHERNET PART        
   word len = ether.packetReceive();
   word pos = ether.packetLoop(len);
@@ -238,7 +250,7 @@ void loop(){
 
     bfill = ether.tcpOffset();
 
-    Serial.print(F("Ethernet "));  
+    Serial.print(F("Eth "));  
     bfill.emit_p(PSTR("HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nPragma: no-cache\r\n\r\n"));
 
 
@@ -289,8 +301,8 @@ void loop(){
       addFloatTobfill(recTimeoutStat);  
       addFloatTobfill(testcounter);
 
-      Serial.println();
-      SerialAll(); 
+      //Serial.println();
+      //SerialAll(); 
     }
 
     if((recTimeoutStat > 0) &&
@@ -300,25 +312,28 @@ void loop(){
       (DataReady_packet[4] == 1) && 
       (DataReady_packet[5] == 1)){
       bfill.emit_p(PSTR("ERR: Sensor Timeout ->"));
+      Serial.println(F(" ERR: Sensor Timeout ->"));
       int recTimeoutStat_tmp = recTimeoutStat;
       if(recTimeoutStat_tmp>7){ 
         bfill.emit_p(PSTR(" TempHumid")); 
+        Serial.println(F(" TempHumid"));
         recTimeoutStat_tmp = recTimeoutStat_tmp -8; 
       }
       if(recTimeoutStat_tmp>3){ 
         bfill.emit_p(PSTR(" WindAverage")); 
+        Serial.println(F(" WindAverage"));
         recTimeoutStat_tmp = recTimeoutStat_tmp -4; 
       }
       if(recTimeoutStat_tmp>1){ 
         bfill.emit_p(PSTR(" WindDirectionGust")); 
+        Serial.print(F(" WindDirectionGust"));
         recTimeoutStat_tmp = recTimeoutStat_tmp -2; 
       }
       if(recTimeoutStat_tmp>0){ 
         bfill.emit_p(PSTR(" Rain")); 
+        Serial.print(F(" Rain"));
         recTimeoutStat_tmp = recTimeoutStat_tmp -1; 
-      }
-      Serial.println();
-      Serial.println(F(" ERR: Sensor Timeout"));
+      }      
     }
 
     if ((DataReady_packet[1] != 1) || 
@@ -328,33 +343,35 @@ void loop(){
       (DataReady_packet[5] != 1))
     {
       bfill.emit_p(PSTR("ERR: Transfer Timeout "));
+      Serial.print(F("ERR: Transfer Timeout"));
       for(i=1; i<=Mirf_NUM_PACKETS; i++){
         addFloatTobfill(i);
         if(DataReady_packet[i]==0){ 
           bfill.emit_p(PSTR("err "));
+          Serial.print(F("err"));
         };
         if(DataReady_packet[i]==1){ 
           bfill.emit_p(PSTR("ok "));
+          Serial.print(F("ok "));
         };
 
       }
-      Serial.println();
-      Serial.println(F(" ERR: Transfer Timeout"));
     }
 
 
     ether.httpServerReply(bfill.position()) ;
     EtherQueryLast = time + EtherQueryTimeout;
-    Serial.println(F("sent"));      
+    Serial.println();      
   }
-
+#endif
 
   //watchdog
   if(time > wdt_TimeAgain)  //watchdog
   {
     wdt_TimeAgain = time + wdt_TimePeriod;
     wdt_reset();
-    //Serial.print(".");  
+    Serial.println(F("."));
+
 
     //reset vzdy po nastavenom case
     //if( (time > wdt_TimePeriodReset) || (EtherQueryLast < millis()) )
@@ -542,9 +559,12 @@ unsigned long bmp085ReadUP()
 
 
 
-
+#ifdef ETH_ON
 void addFloatTobfill(float in)
 {
+  Serial.print(in);
+  Serial.print(F(" "));
+
   in = (floor(in*100))/100 ;
   long in_int = abs(in);
   if(in<0){ 
@@ -557,20 +577,18 @@ void addFloatTobfill(float in)
   bfill.emit_p(PSTR("."));
   ltoa(in_des, buff, 10);
   bfill.emit_raw(buff, strlen(buff));
-  bfill.emit_p(PSTR(" "));   
+  bfill.emit_p(PSTR(" "));     
 }
-
+#endif
 
 
 
 void SerialAll(void)
-{
+{    
   Serial.print(F("  tempOut="));
   Serial.print(tempOut);
   Serial.print(F(", humidOut="));
   Serial.print(humidOut);
-  Serial.print(F(", rain="));
-  Serial.println(rain);
 
   Serial.print(F("  windDir="));
   Serial.print(windDir);
@@ -579,29 +597,41 @@ void SerialAll(void)
   Serial.print(F(", windAvg="));
   Serial.println(windAvg);
 
+  Serial.print(F("  rain="));
+  Serial.print(rain);
 
-  Serial.print(F("  TempOut2="));
-  Serial.print(TempOut2);
-
-  Serial.print(F("  batt_combsensor="));
+  Serial.print(F(", batt_combsensor="));
   Serial.print(batt_combsensor);
   Serial.print(F(", batt_raingauge="));
   Serial.println(batt_raingauge);
 
-  Serial.print(F("  recTimeoutStat="));
-  Serial.print(recTimeoutStat);  
-  Serial.print(F(", testcounter="));
-  Serial.print(testcounter);
+  Serial.print(F("  TempOut2="));
+  Serial.print(TempOut2);
+
+  Serial.print(F(", 0, 0, 0, 0"));
+
   Serial.print(F(", VBat="));
   Serial.println(VBat);  
 
-
-  Serial.print(F(" bmp085temperature="));
+  Serial.print(F("  bmp085temperature="));
   Serial.print(bmp085temperature);
   Serial.print(F(", bmp085pressure="));
-  Serial.println(bmp085pressure);
+  Serial.print(bmp085pressure);
 
-  Serial.print(F(" EtherTimeout="));
+  Serial.println(F(", 0 "));
+
+  Serial.print(F("  windDirAvg="));
+  Serial.print(windDirAvg);  
+
+
+
+
+  Serial.print(F(", recTimeoutStat="));
+  Serial.print(recTimeoutStat);  
+  Serial.print(F(", testcounter="));
+  Serial.println(testcounter);
+
+  Serial.print(F("  EtherTimeout="));
   long tmp = (EtherQueryLast - time) / 1000;
   Serial.println(tmp);  
 
@@ -671,6 +701,7 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   output_f = output_f / 100;
   return output_f;
 }
+
 
 
 
