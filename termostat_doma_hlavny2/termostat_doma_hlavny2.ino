@@ -22,7 +22,7 @@ const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  60 * 60000L;
  const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
  */
 
-const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  0 * 60000L;
+const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  150 * 60000L;
 const unsigned long Kotol_MinCasBehuKotla =  60 * 60000L;
 const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
 
@@ -127,6 +127,13 @@ void setup()
 
 #ifdef DEBUG
   Serial.begin(115200);	// Debugging only
+  Serial.println(); 
+  Serial.print(F("Code "));
+  Serial.print(F(__FILE__));   
+  Serial.print(F(" built at: "));   
+  Serial.print(F(__DATE__)); 
+  Serial.print(F(" "));   
+  Serial.println(F(__TIME__));
   Serial.println(F("setup();"));
 #endif
 
@@ -139,8 +146,8 @@ void setup()
   lcd.createChar(2, znak_ohrev_on);
 
   lcd.setCursor(0, 0);
-  lcd.print(F("starting ..."));
-
+  lcd.print(F("initialisation ..."));
+  
   loadEEPROM();
   rEncInit();
 
