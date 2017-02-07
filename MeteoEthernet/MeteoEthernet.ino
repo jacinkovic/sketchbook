@@ -348,7 +348,7 @@ void loop(){
         addFloatTobfill(i);
         if(DataReady_packet[i]==0){ 
           bfill.emit_p(PSTR("err "));
-          Serial.print(F("err"));
+          Serial.print(F("err "));
         };
         if(DataReady_packet[i]==1){ 
           bfill.emit_p(PSTR("ok "));
