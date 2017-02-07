@@ -21,8 +21,8 @@ const int VBatPin = A0;
 const int TempOut2_DS18S20_Pin = 6;
 
 //const unsigned long SendMirf_FirstTime = 300 *1000L; ////first data will be send 5 minutes after start, in ms
-const unsigned long SendMirf_FirstTime = 1 *1000L; ////first data will be send 5 minutes after start, in ms
-const unsigned long SendMirf_TimePeriod = 15 *1000L; //in ms
+const unsigned long SendMirf_FirstTime = 5 *1000L; ////first data will be send 5 minutes after start, in ms
+const unsigned long SendMirf_TimePeriod = 30 *1000L; //in ms
 
 const unsigned long Watchdog_TimePeriod = 1 *1000L; //in ms
 //const unsigned long Watchdog_TimePeriodReset = 86400 *1000L; //in sec
@@ -188,7 +188,7 @@ void SendMirf(){
   for(int i=1; i<=Mirf_NUM_PACKETS; i++){
     for(int ii=0; ii<1; ii++){ //repeat transfer x times
       SendMirf_packet(i);  //send each packet
-      delay(2);
+      delay(50);
     }  
   }
 }
@@ -233,11 +233,11 @@ void SendMirf_packet(int index)
   }
 
 
-  //  for (i = 0; i < 16; i++) {
-  //    Serial.print(F(" "));
-  //    Serial.print(mirf_data[i], DEC);
-  //  }
-  //  Serial.println();
+  for (i = 0; i < 16; i++) {
+    Serial.print(F(" "));
+    Serial.print(mirf_data[i], DEC);
+  }
+  Serial.println();
 }
 
 
@@ -368,6 +368,7 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   output_f = output_f / 100;
   return output_f;
 }
+
 
 
 
