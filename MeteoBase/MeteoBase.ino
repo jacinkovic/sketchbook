@@ -21,8 +21,12 @@ const int VBatPin = A0;
 const int TempOut2_DS18S20_Pin = 6;
 
 //const unsigned long SendMirf_FirstTime = 300 *1000L; ////first data will be send 5 minutes after start, in ms
-const unsigned long SendMirf_FirstTime = 5 *1000L; ////first data will be send 5 minutes after start, in ms
-const unsigned long SendMirf_TimePeriod = 30 *1000L; //in ms
+const unsigned long SendMirf_FirstTime = 0 *1000L; ////first data will be send 5 minutes after start, in ms
+const unsigned long SendMirf_TimePeriod = 20 *1000L; //in ms
+
+const long MirfAliveTimeout = 2 * 60 * 1000L;
+unsigned long MirfAliveLast;
+
 
 const unsigned long Watchdog_TimePeriod = 1 *1000L; //in ms
 //const unsigned long Watchdog_TimePeriodReset = 86400 *1000L; //in sec
@@ -92,6 +96,7 @@ void setup() {
   Mirf.spi = &MirfHardwareSpi;
   Mirf.init();
   Mirf.setTADDR((byte *)"meteo");
+  Mirf.setRADDR((byte *)"meteo");
   Mirf.payload = Mirf_payload;
   Mirf.config();
   delay(2);
@@ -106,6 +111,7 @@ void setup() {
   //initialisation
   SendMirf_UpdateTime = SendMirf_FirstTime; 
   recTimeoutStat = 15;
+  MirfAliveLast = millis() + MirfAliveTimeout;
   //end
 
 }
@@ -139,6 +145,14 @@ void loop()
     SerialAll();
   }
 
+  //checking Mirf response from MeteoEthernet
+  if (Mirf.dataReady()){
+    Mirf.getData((byte *) &mirf_data);    
+    MirfAliveLast = millis() + MirfAliveTimeout;
+    Serial.println(F("MirfAliveReceived"));
+  }
+
+
 
   //watchdog 
   if ((long)(millis() - Watchdog_UpdateTime > Watchdog_TimePeriod))   
@@ -156,6 +170,17 @@ void loop()
      }
      */
   }
+
+
+  //reset vzdy po nastavenom case
+  //if( (time > wdt_TimePeriodReset) || (EtherQueryLast < millis()) )
+  if( MirfAliveLast < millis() )
+  {
+    Serial.println(F("Reset reason: MirfAliveLast < time"));
+    while(1); //no Alive Response for a long time, probably problem with communication, reset
+  }
+
+
 }
 
 
@@ -185,10 +210,9 @@ void getRecTimeoutStat(void)  //check timeout for received data from Auriol
 void SendMirf(){
   wdt_reset();
   Serial.println(F("SendMirf"));
-  for(int i=1; i<=Mirf_NUM_PACKETS; i++){
-    for(int ii=0; ii<1; ii++){ //repeat transfer x times
+  for(int ii=0; ii<5; ii++){ //repeat transfer x times
+    for(int i=1; i<=Mirf_NUM_PACKETS; i++){
       SendMirf_packet(i);  //send each packet
-      delay(50);
     }  
   }
 }
@@ -232,12 +256,12 @@ void SendMirf_packet(int index)
     delay(1);
   }
 
-
-  for (i = 0; i < 16; i++) {
-    Serial.print(F(" "));
-    Serial.print(mirf_data[i], DEC);
-  }
-  Serial.println();
+  /* for (i = 0; i < 16; i++) {
+   Serial.print(F(" "));
+   Serial.print(mirf_data[i], DEC);
+   }
+   Serial.println();
+   */
 }
 
 
@@ -368,6 +392,8 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   output_f = output_f / 100;
   return output_f;
 }
+
+
 
 
 

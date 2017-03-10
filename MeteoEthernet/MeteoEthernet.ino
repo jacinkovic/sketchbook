@@ -13,7 +13,7 @@
 
 
 unsigned long time;
-const unsigned long DataReady_packet_TimePeriod = 10 *60 *1000L; //MIRF connection timeout 10 minutes in ms
+const unsigned long DataReady_packet_TimePeriod = 15 *60 *1000L; //MIRF connection timeout in 1 minute in ms
 
 const int Mirf_NUM_PACKETS = 5;
 byte mirf_data[16];
@@ -119,6 +119,7 @@ void setup(){
   Mirf.spi = &MirfHardwareSpi;
   Mirf.init();
   Mirf.setRADDR((byte *)"meteo");
+  Mirf.setTADDR((byte *)"meteo");
   Mirf.payload = 16;
   Mirf.config();
 
@@ -239,6 +240,8 @@ void loop(){
     //      mirf_data[i] = 0; //clear all 
     //    } 
     Mirf.getData((byte *) &mirf_data);
+
+    SendMirfAlive();
   }
 
 
@@ -342,10 +345,12 @@ void loop(){
       (DataReady_packet[4] != 1) || 
       (DataReady_packet[5] != 1))
     {
-      bfill.emit_p(PSTR("ERR: Transfer Timeout "));
-      Serial.print(F("ERR: Transfer Timeout"));
+      bfill.emit_p(PSTR("ERR: Mirf Timeout "));
+      Serial.print(F("ERR: Mirf Timeout "));
       for(i=1; i<=Mirf_NUM_PACKETS; i++){
         addFloatTobfill(i);
+        Serial.print(i);
+        Serial.print(" ");
         if(DataReady_packet[i]==0){ 
           bfill.emit_p(PSTR("err "));
           Serial.print(F("err "));
@@ -377,11 +382,13 @@ void loop(){
     //if( (time > wdt_TimePeriodReset) || (EtherQueryLast < millis()) )
     if( EtherQueryLast < time )
     {
+      Serial.println(F("Reset reason: EtherQueryLast < time"));
       while(1); //no Ethernet request for a long time, probably problem with communication, reset
     }
 
     for(i=1; i<=Mirf_NUM_PACKETS; i++){ 
       if(time > DataReady_packet_TimeAgain[i]){ 
+        Serial.println(F("Reset reason: time > DataReady_packet_TimeAgain[i]"));
         while(1); //reset arduino, probably problem with communication, reset
       }
     }        
@@ -700,6 +707,58 @@ float buildUpFloat(long outbox3, long  outbox2, long  outbox1, long outbox0)
   float output_f = output_l;
   output_f = output_f / 100;
   return output_f;
+}
+
+
+
+
+void SendMirfAlive(void)
+{
+  int i;
+  byte mirf_data_checksum;
+
+  Mirf.setTADDR((byte *)"meteo");
+  delay(2);
+
+  for (i = 0; i < Mirf.payload; i++) {
+    mirf_data[i] = 0;
+  }
+
+  //fillMirfPacket(index);
+
+  //kontrolny sucet
+  byte crc = 0x00;
+  //mirf_data_checksum = 0; 
+  for (i = 0; i < Mirf.payload-1; i++) {
+    //mirf_data_checksum = mirf_data_checksum + mirf_data[i];
+    byte extract = mirf_data[i];
+    for (byte tempI = 8; tempI; tempI--) {
+      byte sum = (crc ^ extract) & 0x01;
+      crc >>= 1;
+      if (sum) {
+        crc ^= 0x8C;
+      }
+      extract >>= 1;
+    }
+  }
+  mirf_data_checksum = crc;
+  mirf_data[Mirf.payload-1] = mirf_data_checksum;
+
+
+  Mirf.send((byte *) mirf_data);
+  while(Mirf.isSending()){
+    delay(1);
+  }
+
+  /* for (i = 0; i < 16; i++) {
+   Serial.print(F(" "));
+   Serial.print(mirf_data[i], DEC);
+   }
+   Serial.println();
+   */
+
+  Serial.println(F("SendMirfAlive"));
+
 }
 
 
