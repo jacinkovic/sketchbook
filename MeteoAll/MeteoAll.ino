@@ -20,7 +20,7 @@ const int VBatPin = A0;
 const int TempOut1_DS18S20_Pin = 4;
 const int TempOut2_DS18S20_Pin = 5;
 
-const unsigned long Rec_Timeout_Limit = 5 * 60000L;  //timeout for messages from Auriol
+const unsigned long Rec_Timeout_Limit = 15 * 60000L;  //timeout for messages from Auriol
 const unsigned long Rec_Timeout_StartValue = 99999999L; //to get timeout on start
 
 unsigned long rec_time_TempHumid = Rec_Timeout_StartValue;
