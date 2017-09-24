@@ -10,12 +10,9 @@ void setup () {
   Serial.begin(9600);
   lcd.begin(16, 2);
   lcd.clear();
-  Wire.begin();
-  RTC.begin();
-  if (! RTC.isrunning()) {
-    Serial.println("RTC is NOT running!");
-    RTC.adjust(DateTime(__DATE__, __TIME__));
-  }
+  lcd.print("go");
+   Serial.println("RTC is NOT running!");
+  
 }
 void loop () {
   DateTime now = RTC.now();
