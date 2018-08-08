@@ -8,7 +8,7 @@ EthernetServer server = EthernetServer(80);
 
 #include "DHT.h"
 
-#define DEBUGoff
+#define DEBUG
 
 const byte DHTPIN = 2; // what pin we're connected to
 #define DHTTYPE DHT22 // DHT 22 (AM2302)
@@ -52,6 +52,9 @@ const byte analoggasCOPin = A1;
 
 const unsigned long MeasureTime_Period = 60 * 1000L;
 unsigned long MeasureTimeLast;
+
+const unsigned long DebugTime_Period = 1000L;
+unsigned long DebugTimeLast;
 
 const unsigned long EtherQuery_Timeout = 15 * 60000L;
 unsigned long EtherQueryLast;
@@ -110,6 +113,9 @@ void loop()
 
   if ((long)(millis() - MeasureTimeLast > MeasureTime_Period))
   {
+#ifdef DEBUG
+  Serial.println(F("measuring time: "));
+#endif
     read_sensors();
     MeasureTimeLast = millis();
   }
@@ -124,6 +130,14 @@ void loop()
 #endif
     while (1);
   }
+
+#ifdef DEBUG
+  if ((long)(millis() - DebugTimeLast > DebugTime_Period))
+  {
+    Serial.print(F("."));
+    DebugTimeLast = millis();
+  }
+#endif
 
 }
 
@@ -140,7 +154,9 @@ int getTemp1() {
   byte dsdata[12];
   byte dsaddr[8];
 
-  //Serial.println(F("getTemp1: "));
+#ifdef DEBUG
+  Serial.println(F("getTemp1."));
+#endif
 
   if ( !ds_Temp1.search(dsaddr)) {
     //no more sensors on chain, reset search
@@ -196,7 +212,9 @@ int getTemp2() {
   byte dsdata[12];
   byte dsaddr[8];
 
-  //Serial.println(F("getTemp2: "));
+#ifdef DEBUG
+  Serial.println(F("getTemp2."));
+#endif
 
   if ( !ds_Temp2.search(dsaddr)) {
     //no more sensors on chain, reset search
@@ -252,7 +270,9 @@ int getTemp3() {
   byte dsdata[12];
   byte dsaddr[8];
 
-  //Serial.println(F("getTemp3: "));
+#ifdef DEBUG
+  Serial.println(F("getTemp3."));
+#endif
 
   if ( !ds_Temp3.search(dsaddr)) {
     //no more sensors on chain, reset search
@@ -309,7 +329,9 @@ int getTempRoom() {
   byte dsdata[12];
   byte dsaddr[8];
 
-  //Serial.println(F("getTempRoom: "));
+#ifdef DEBUG
+  Serial.println(F("getTempRoom."));
+#endif
 
   if ( !ds_tempRoom.search(dsaddr)) {
     //no more sensors on chain, reset search
@@ -362,6 +384,10 @@ int getTempRoom() {
 
 float getgasZemPlyn(void)
 {
+#ifdef DEBUG
+  Serial.println(F("getgasZemPlyn."));
+#endif
+
   float Vcc = readVcc();
   delay(2);
   float volt = analogRead(analoggasZemPlynPin);
@@ -373,6 +399,9 @@ float getgasZemPlyn(void)
 
 float getgasCO(void)
 {
+#ifdef DEBUG
+  Serial.println(F("getgasCO."));
+#endif
   float Vcc = readVcc();
   delay(2);
   float volt = analogRead(analoggasCOPin);
@@ -509,6 +538,9 @@ void checkEth(void) {
 
 void read_sensors(void)
 {
+#ifdef DEBUG
+    Serial.println(F("read_sensors: "));
+#endif
   getTemp1();
   getTemp2();
   getTemp3();
@@ -530,7 +562,6 @@ void read_sensors(void)
   }
 
 #ifdef DEBUG
-  Serial.println(F("read_sensors();"));
   Serial.print(temp1);
   Serial.print(F(" "));
   Serial.print(temp2);
