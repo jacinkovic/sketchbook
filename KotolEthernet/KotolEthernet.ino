@@ -84,7 +84,7 @@ void setup() {
 
   for (int i = 0; i < 10; i++) {
     wdt_reset();
-    delay(500);
+    delay(200);
     read_sensors();
   }
 
@@ -98,7 +98,7 @@ void setup() {
   IPAddress myIP(192, 168, 1, 202);
   Ethernet.begin(mac, myIP);
   server.begin();
-
+  
 #ifdef DEBUG
   Serial.println(F("loop();"));
 #endif
@@ -109,7 +109,11 @@ void loop()
 {
   wdt_reset();
 
+  checkEth();
+
   checkReceiveSauna433MHz();
+
+  checkEth();
 
   if ((long)(millis() - MeasureTimeLast > MeasureTime_Period))
   {
@@ -119,8 +123,6 @@ void loop()
     read_sensors();
     MeasureTimeLast = millis();
   }
-
-  checkEth();
 
   //reset ak sa ethernet neozyva
   if ((long)(millis() - EtherQueryLast > EtherQuery_Timeout))
@@ -490,6 +492,7 @@ void checkEth(void) {
 #ifdef DEBUG
     Serial.println(F("eth."));
 #endif
+    client.read();
 
     client.print(temp1);
     client.print(F(" "));
