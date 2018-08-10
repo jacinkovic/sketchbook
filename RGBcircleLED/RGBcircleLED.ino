@@ -12,7 +12,7 @@
 // 
 
 // How many leds are in the strip?
-#define NUM_LEDS 16
+#define NUM_LEDS 12
 
 // Data pin that led data will be written out over
 #define DATA_PIN 6
