@@ -5,6 +5,8 @@ EthernetServer server = EthernetServer(80);
 
 #include <VirtualWire.h> //433MHz
 
+#define DEBUG
+
 #define LED_ON  255
 #define LED_OFF 0
 
@@ -22,10 +24,8 @@ const unsigned long rx433MHzPacket_Timeout = 10 * 60000;
 unsigned long rx433MHzPacket[rx433MHzPacket_MaxNum];
 const unsigned long rx433MHzAgain_StartValue = 9999999L; //to get timeout on start
 
-
-//how often are data transmitted to thermostat base
-//const unsigned long tx433MHzUpdate_Period = 1 * 60000;
-//unsigned long tx433MHzUpdate;
+const unsigned long EtherQuery_Timeout = 15 * 60000L;
+unsigned long EtherQueryLast;
 
 //timeout for receiving data from pc server
 const unsigned long rxEthPacket_Timeout = 10 * 60000;
@@ -48,8 +48,10 @@ void setup()
 {
   wdt_enable(WDTO_8S);
 
-  //Serial.begin(115200);	// Debugging only
-  //Serial.println(F("setup();"));
+#ifdef DEBUG
+  Serial.begin(115200);	// Debugging only
+  Serial.println(F("setup();"));
+#endif
 
   uint8_t mac[6] = {
     0x74, 0x69, 0x69, 0x2D, 0x30, 0x35      };
@@ -69,7 +71,10 @@ void setup()
     rx433MHzPacket[i] = rx433MHzAgain_StartValue;
   }
 
-  //Serial.println(F("loop();"));
+#ifdef DEBUG
+  Serial.println(F("loop();"));
+#endif
+  
 }
 
 void loop()
@@ -81,37 +86,18 @@ void loop()
   checkEth();
 
 
-/* removed as tx is performed immediately after eth receive
-if (millis() - tx433MHzUpdate > tx433MHzUpdate_Period) {
-    tx433MHzUpdate = millis() + random(1000);
-
-    tx433MHz();
-    //Serial.print(F("freeRam=")); Serial.println(freeRam());
+  //reset ak sa ethernet neozyva
+  if ((long)(millis() - EtherQueryLast > EtherQuery_Timeout))
+  {
+#ifdef DEBUG
+    Serial.println(F("EtherQueryLastTimeout"));
+#endif
+    while (1);
   }
-*/
 
 }
 
 
-/*
-void tx433MHz(void)
-{
-  //Serial.println(F("tx433MHzUpdate();"));
-  //Serial.print(F(" "));
-
-  led(LED_ON);
-  tx433MHzUpdate_packet(1);
-  tx433MHzUpdate_packet(2);
-  tx433MHzUpdate_packet(3);
-
-  //tx433MHzUpdate_packet(4);
-  //send all except packet 4 with TIME
-
-
-  led(LED_OFF);
-  //Serial.println();
-}
-*/
 
 
 void tx433MHzUpdate_packet(byte packetNum)
@@ -173,8 +159,11 @@ void check433MHz(void) {
   buflen = buflen_433MHz;
   if (vw_get_message(buf, &buflen)) // Non-blocking
   {
-    //Message with a good checksum received, dump it.
-    //Serial.println(F("VW_GET_MESSAGE"));
+#ifdef DEBUG
+  //Message with a good checksum received, dump it.
+  Serial.println(F("VW_GET_MESSAGE"));
+#endif
+
     int i;
     led(LED_ON);
 
@@ -230,8 +219,12 @@ void checkEth() {
   if (EthernetClient client = server.available())
   {
     params = "";
-    //Serial.println();
-    //Serial.println(F("client.available()"));
+
+#ifdef DEBUG
+    Serial.println();
+    Serial.println(F("client.available()"));
+#endif
+
     while ((size = client.available()) > 0)
     {
       char c = client.read();
@@ -251,7 +244,7 @@ void checkEth() {
     }
     else
     {
-      //Serial.println(F("answering"));
+      Serial.println(F("answering"));
       client.print(TempIzba1);
       client.print(medzera);
 
@@ -298,13 +291,16 @@ void checkEth() {
 
     }
     client.stop();
+    EtherQueryLast = millis();
   }
 }
 
 int extractValuesFromparams(void)
 {
-  //Serial.println(F("extractValuesFromparams()"));
-  //Serial.println(F(" params=")); Serial.println(params);
+#ifdef DEBUG
+  Serial.println(F("extractValuesFromparams()"));
+  Serial.println(F(" params=")); Serial.println(params);
+#endif
 
   for (int i = 0; i < 8; i++) {
     extractOneValuefromparams(i);
@@ -322,9 +318,11 @@ void extractOneValuefromparams(unsigned char valueIndex)
     "VoTe", "SaTe", "KoVy", "KoSp", "BoVy", "TiHH", "TiMM", "TiSS"
   };
 
-  //Serial.println(F("extractOneValuefromparams()"));
-  //Serial.print(F(" params=")); Serial.println(params);
+#ifdef DEBUG
+  Serial.println(F("extractOneValuefromparams()"));
+  Serial.print(F(" params=")); Serial.println(params);
   //Serial.print(F("freeRam=")); Serial.println(freeRam());
+#endif
 
   ind1 = params.indexOf(ethValuesNames[valueIndex]);
   if (ind1 != -1) {
