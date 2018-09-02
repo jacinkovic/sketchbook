@@ -34,23 +34,16 @@ OneWire ds_tempRoom(DS18S20_Pin_TempRoom);
 int temp1;
 int temp2;
 int temp3;
-int tempTC;
 int tempRoom;
 int humidRoom;
 int gasZemPlyn;
 int gasCO;
 
 
-//TC
-//const float TC_m = 0.10371769557;
-//const float TC_b = 37.3700094445;
-
-const byte analogTCPin = A5;
-const byte TC_repeat = 100;
 const byte analoggasZemPlynPin = A0;
 const byte analoggasCOPin = A1;
 
-const unsigned long MeasureTime_Period = 60 * 1000L;
+const unsigned long MeasureTime_Period = 10 * 1000L;
 unsigned long MeasureTimeLast;
 
 const unsigned long DebugTime_Period = 1000L;
@@ -68,7 +61,7 @@ int saunacasVyp;
 byte saunaohrevSpirala;
 
 
-
+int static read_sensors_state = 0;
 
 
 void setup() {
@@ -79,19 +72,6 @@ void setup() {
   Serial.println(F("setup();"));
 #endif
 
-  pinMode(analogTCPin, INPUT);
-  dht.begin();
-
-  for (int i = 0; i < 10; i++) {
-    wdt_reset();
-    delay(200);
-    read_sensors();
-  }
-
-  vw_set_rx_pin(receive433MHz_pin);
-  vw_setup(2000);	 // Bits per sec
-  vw_rx_start();   // Start the receiver PLL running
-
   ReceiveSaunaLast = millis() - ReceiveSauna_Timeout;
 
   uint8_t mac[6] = {0x74, 0x73, 0x71, 0x2D, 0x32, 0x32};
@@ -99,6 +79,18 @@ void setup() {
   Ethernet.begin(mac, myIP);
   server.begin();
   
+  //vw_set_rx_pin(receive433MHz_pin);
+  //vw_setup(2000);	 // Bits per sec
+  //vw_rx_start();   // Start the receiver PLL running
+
+  dht.begin();
+
+  for (int i = 0; i < 10; i++) {
+    delay(500);
+    wdt_reset();
+    read_sensors();
+  }
+
 #ifdef DEBUG
   Serial.println(F("loop();"));
 #endif
@@ -111,9 +103,7 @@ void loop()
 
   checkEth();
 
-  checkReceiveSauna433MHz();
-
-  checkEth();
+  //checkReceiveSauna433MHz();
 
   if ((long)(millis() - MeasureTimeLast > MeasureTime_Period))
   {
@@ -415,17 +405,6 @@ float getgasCO(void)
 
 
 
-float getTC(void)
-{
-  float Vcc = readVcc();
-  delay(2);
-  float volt = analogRead(analogTCPin);
-  volt = (volt / 1023.0) * Vcc; // only correct if Vcc = 5.0 volts
-
-  return volt;
-}
-
-
 
 long readVcc(void) {
   long result;
@@ -440,6 +419,20 @@ long readVcc(void) {
   return result;
 }
 
+
+void getHumid(void){
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  if (isnan(t) || isnan(h)) {
+#ifdef DEBUG
+     Serial.println(F("DHT: failed"));
+#endif
+  }
+  else {
+    humidRoom = h;
+  }  
+    
+}
 
 
 void checkReceiveSauna433MHz(void) {
@@ -480,7 +473,7 @@ void checkReceiveSauna433MHz(void) {
 
   }
 
-  wdt_reset();
+ 
 }
 
 
@@ -492,15 +485,13 @@ void checkEth(void) {
 #ifdef DEBUG
     Serial.println(F("eth."));
 #endif
-    client.read();
+    while (client.available() > 0) { client.read(); }
 
     client.print(temp1);
     client.print(F(" "));
     client.print(temp2);
     client.print(F(" "));
     client.print(temp3);
-    client.print(F(" "));
-    client.print(tempTC);
     client.print(F(" "));
     client.print(tempRoom);
     client.print(F(" "));
@@ -535,7 +526,6 @@ void checkEth(void) {
     EtherQueryLast = millis();
   }
 
-  wdt_reset();
 }
 
 
@@ -543,35 +533,40 @@ void read_sensors(void)
 {
 #ifdef DEBUG
     Serial.println(F("read_sensors: "));
+    Serial.print(F("read_sensors_state = "));
+    Serial.println(read_sensors_state);
 #endif
-  getTemp1();
-  getTemp2();
-  getTemp3();
-  getTempRoom();
 
-  tempTC = getTC();
-  gasZemPlyn = getgasZemPlyn();
-  gasCO = getgasCO();
-
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-  if (isnan(t) || isnan(h)) {
-#ifdef DEBUG
-    Serial.println(F("DHT: failed"));
-#endif
+  switch(read_sensors_state){
+    case 0:
+      getTemp1();
+      break;
+    case 1:
+      getTemp2();
+      break;
+    case 2:
+      getTemp3();
+      break;
+    case 3:
+      getTempRoom();
+      break;
+    case 4:
+      getHumid();
+      break;
+    case 5:
+      gasZemPlyn = getgasZemPlyn();
+      gasCO = getgasCO();
+    break;
   }
-  else {
-    humidRoom = h;
-  }
-
+  read_sensors_state++;
+  if (read_sensors_state > 5) read_sensors_state = 0;
+  
 #ifdef DEBUG
   Serial.print(temp1);
   Serial.print(F(" "));
   Serial.print(temp2);
   Serial.print(F(" "));
   Serial.print(temp3);
-  Serial.print(F(" "));
-  Serial.print(tempTC);
   Serial.print(F(" "));
   Serial.print(tempRoom);
   Serial.print(F(" "));
@@ -583,80 +578,6 @@ void read_sensors(void)
   Serial.println();
 #endif
 }
-
-
-
-//int freeRam()
-//{
-//  extern int __heap_start, *__brkval;
-//  int v;
-//  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-//}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
