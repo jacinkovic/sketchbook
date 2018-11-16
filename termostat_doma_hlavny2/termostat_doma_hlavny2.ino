@@ -207,7 +207,14 @@ void loop()
 
     saveEEPROM();
     //vypisRam();
-
+    
+    //no backlight at night
+    if((TimeHH<=6) || (TimeHH>=22)){
+      lcd.noBacklight();
+    } else {
+      lcd.backlight();
+    }
+    
   }
 
   check433MHz();
