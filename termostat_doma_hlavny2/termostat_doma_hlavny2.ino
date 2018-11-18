@@ -212,7 +212,7 @@ void loop()
     
  
     //no backlight at night
-    if( ((TimeHH>=6) && (TimeHH<=21)) || (rEncGetButton() == 1)){
+    if((TimeHH>=6) && (TimeHH<=21)){
       lcd.backlight();
     } else {
       lcd.noBacklight();
