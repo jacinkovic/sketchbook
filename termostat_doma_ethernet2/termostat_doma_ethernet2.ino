@@ -39,6 +39,7 @@ int TempNast;
 int Heating1, Heating2;
 int TempVonku;
 int SaunaTemp;
+int WeekTemp;
 int RuryKotolVystup, RuryKotolSpiatocka, RuryBojlerVystup;
 int TimeHH, TimeMM, TimeSS;
 
@@ -136,6 +137,11 @@ void tx433MHzUpdate_packet(byte packetNum)
     msg[4] = TimeHH;
     msg[5] = TimeMM;
     msg[6] = TimeSS;
+  }
+
+  if (packetNum == 5) {
+    msg[4] = WeekTemp / 10;
+    msg[5] = WeekTemp % 10;
   }
 
   if (millis() - rxEthPacket[packetNum] < rxEthPacket_Timeout) {
@@ -240,7 +246,7 @@ void checkEth() {
     if (params.charAt(0) == '?')
     {
       extractValuesFromparams();
-      client.print(millis());
+      client.print(millis()/1000);
     }
     else
     {
@@ -302,7 +308,7 @@ int extractValuesFromparams(void)
   Serial.println(F(" params=")); Serial.println(params);
 #endif
 
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 9; i++) {
     extractOneValuefromparams(i);
   }
 }
@@ -315,7 +321,7 @@ void extractOneValuefromparams(unsigned char valueIndex)
   int ind1 = 0, ind2 = 0, ind3 = 0;
   int value = 0;
   String ethValuesNames[] = {
-    "VoTe", "SaTe", "KoVy", "KoSp", "BoVy", "TiHH", "TiMM", "TiSS"
+    "VoTe", "SaTe", "KoVy", "KoSp", "BoVy", "TiHH", "TiMM", "TiSS", "TiWk"
   };
 
 #ifdef DEBUG
@@ -391,6 +397,14 @@ void extractOneValuefromparams(unsigned char valueIndex)
 
           //send time to thermostat_base immediately after receiving from pc
           tx433MHzUpdate_packet(4);
+        }
+        
+         if (valueIndex == 8) {
+          WeekTemp = value;
+          rxEthPacket[2] = millis();
+
+          //send immediately to thermostat_base immediately after receiving from pc
+          tx433MHzUpdate_packet(5);
         }
 
       }

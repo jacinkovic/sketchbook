@@ -22,6 +22,8 @@ const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  60 * 60000L;
  const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
  */
 
+const unsigned int EEPROMTempNastLoc = 15; 
+
 const unsigned long Kotol_MinCasMedziDvomaZapnutiamiKotla =  150 * 60000L;
 const unsigned long Kotol_MinCasBehuKotla =  60 * 60000L;
 const unsigned long Kotol_CasDobehCerpadlo =  10 * 60000L;
@@ -59,6 +61,7 @@ unsigned long rx433MHzAgainVonku = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainSauna = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainRury = rx433MHzAgain_StartValue;
 unsigned long rx433MHzAgainTime = rx433MHzAgain_StartValue;
+unsigned long rx433MHzAgainWeek = rx433MHzAgain_StartValue;
 
 
 const unsigned long lcdUpdateTime_Period  = 1000L;
@@ -73,6 +76,7 @@ int TempBase;
 int TempNast;
 int TempVonku, TimeoutVonku;
 int SaunaTemp, TimeoutSauna;
+int WeekTemp, TimeoutWeek;
 int RuryKotolVystup, RuryKotolSpiatocka, RuryBojlerVystup, TimeoutRury;
 int TimeHH, TimeMM, TimeSS, TimeoutTime;
 
@@ -176,8 +180,6 @@ void setup()
   //lcd.print(F("nast."));
   lcd.setCursor(0, 2);
   lcd.print(F("vonku"));
-  lcd.setCursor(7, 2);
-  lcd.print(F("sauna"));
 
 #ifdef DEBUG
   Serial.println(F("loop();"));
@@ -208,11 +210,12 @@ void loop()
     saveEEPROM();
     //vypisRam();
     
+ 
     //no backlight at night
-    if((TimeHH<=6) || (TimeHH>=22)){
-      lcd.noBacklight();
-    } else {
+    if( ((TimeHH>=6) && (TimeHH<=21)) || (rEncGetButton() == 1)){
       lcd.backlight();
+    } else {
+      lcd.noBacklight();
     }
     
   }
@@ -279,25 +282,6 @@ void vypisOstatne(void)
   }
 
 
-  lcd.setCursor(7, 3);
-  if ((long)(millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout)) {
-    if (TimeoutSauna == 1) {
-      vypisLcdNodata2();
-    } 
-    else {
-      if (SaunaTemp == -444) {
-        lcd.print(F(" vyp "));
-      } 
-      else {
-        vypisLcdTempInt(SaunaTemp);
-      }
-    }
-  }
-  else {
-    vypisLcdNodata();
-  }
-
-
 
   long ii = millis() / (lcdUpdateTime_Period  * 2);
   ii = ii % 2;
@@ -308,6 +292,26 @@ void vypisOstatne(void)
     lcd.print(F("chodba"));
     lcd.setCursor(7, 1);
     vypisLcdDecimal(TempBase);
+
+    lcd.setCursor(7, 2);
+    lcd.print(F("sauna "));
+    lcd.setCursor(7, 3);
+    if ((long)(millis() - rx433MHzAgainSauna < rx433MHzAgain_Timeout)) {
+      if (TimeoutSauna == 1) {
+        vypisLcdNodata2();
+      } 
+      else {
+        if (SaunaTemp == -444) {
+          lcd.print(F(" vyp "));
+        } 
+        else {
+          vypisLcdTempInt(SaunaTemp);
+        }
+      }
+    }
+    else {
+      vypisLcdNodata();
+    }
 
     break;
 
@@ -320,6 +324,21 @@ void vypisOstatne(void)
     }
     else {
       lcd.setCursor(7, 1);
+      vypisLcdNodata();
+    }
+
+    lcd.setCursor(7, 2);
+    lcd.print(F("tyzden"));
+    lcd.setCursor(7, 3);
+    if ((long)(millis() - rx433MHzAgainWeek < rx433MHzAgain_Timeout)) {
+      if (TimeoutWeek == 1) {
+        vypisLcdNodata2();
+      } 
+      else {
+        vypisLcdNum(WeekTemp);
+      }
+    }
+    else {
       vypisLcdNodata();
     }
 
@@ -532,6 +551,12 @@ void check433MHz(void) {
         TimeoutTime = buf[10];
       }
 
+      if (buf[3] == '5') {
+        rx433MHzAgainWeek = millis();
+        WeekTemp = convNumSigned(buf[4], buf[5]);
+        TimeoutWeek = buf[10];
+      }
+
     }
 
     led(LED_OFF);
@@ -618,7 +643,7 @@ void loadEEPROM(void)
   //format
   //TempNast 10
 
-  TempNast = constrain(EEPROM.read(10), TempNast_Min, TempNast_Max);
+  TempNast = constrain(EEPROM.read(EEPROMTempNastLoc), TempNast_Min, TempNast_Max);
 #ifdef DEBUG
   Serial.print(F("TempNast= "));
   Serial.println(TempNast);
@@ -629,7 +654,7 @@ void loadEEPROM(void)
 
 void saveEEPROM(void)
 {
-  EEPROMupdate(10, TempNast);
+  EEPROMupdate(EEPROMTempNastLoc, TempNast);
 }
 
 
@@ -754,11 +779,22 @@ int StringContains(String s, String search) {
   return -1;
 }
 
+//integer only
+void vypisLcdNum(int input) {
+  Serial.print(input);
+  input = input / 10;
+  if (abs(input) < 10) {
+    lcd.print(F(" "));
+  }
+  if (input >= 0) {
+    lcd.print(F(" "));
+  }
+  lcd.print(input);
+  lcd.print(F("  "));
+}
 
 
-
-
-
+//decimal and Celsius
 void vypisLcdDecimal(int input) {
   if ((input < 100) && (input != 0)) {
     lcd.print(F(" "));
@@ -772,7 +808,7 @@ void vypisLcdDecimal(int input) {
 
 
 
-
+//no decimal and Celsius
 void vypisLcdTempInt(int input) {
   input = input / 10;
   //lcd.print(F(" "));
