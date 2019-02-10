@@ -485,9 +485,6 @@ void checkEth(void) {
 #ifdef DEBUG
     Serial.println(F("eth."));
 #endif
-    //while ((size = client.available()) > 0) { client.read(); }
-    while (client.available() > 0) { client.read(); }
-
     client.print(temp1);
     client.print(F(" "));
     client.print(temp2);
