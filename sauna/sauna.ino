@@ -4,6 +4,8 @@
 #include <avr/wdt.h>
 #include <EEPROM.h>
 
+const int nastTempEEPROMlocation = 110;
+
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
 int DS18S20_Pin = 2; //DS18S20 Signal pin on digital 2
@@ -190,7 +192,7 @@ void setup()
 
   casEnd = 0;//hod v ms
 
-  nastTemp = constrain(int(EEPROM.read(100)) * 10, nastTempMin, nastTempMax);
+  nastTemp = constrain(int(EEPROM.read(nastTempEEPROMlocation)) * 10, nastTempMin, nastTempMax);
 
   for (i = 0; i < 10; i++) { //inicializacia ds18b20
     getTemp();
@@ -635,13 +637,12 @@ void sendSerial(void)
 
 
 void saveNastTemp(void) {
-  int address = 110;
   int value = nastTemp / 10;
 
-  byte old = EEPROM.read(address);
+  byte old = EEPROM.read(nastTempEEPROMlocation);
 
   if (old != value) {
-    EEPROM.write(address, value);
+    EEPROM.write(nastTempEEPROMlocation, value);
     //Serial.print(F("NastTemp saved to EEPROM saved at: "));
     //Serial.print(address);
     //Serial.print(F(" value: "));
