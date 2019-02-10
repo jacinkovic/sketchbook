@@ -74,14 +74,14 @@ void setup() {
 
   ReceiveSaunaLast = millis() - ReceiveSauna_Timeout;
 
-  uint8_t mac[6] = {0x74, 0x73, 0x71, 0x2D, 0x32, 0x32};
+  uint8_t mac[6] = {0x74, 0x73, 0x71, 0x2D, 0x33, 0x33};
   IPAddress myIP(192, 168, 1, 202);
   Ethernet.begin(mac, myIP);
   server.begin();
   
-  //vw_set_rx_pin(receive433MHz_pin);
-  //vw_setup(2000);	 // Bits per sec
-  //vw_rx_start();   // Start the receiver PLL running
+  vw_set_rx_pin(receive433MHz_pin);
+  vw_setup(2000);	 // Bits per sec
+  vw_rx_start();   // Start the receiver PLL running
 
   dht.begin();
 
@@ -103,7 +103,7 @@ void loop()
 
   checkEth();
 
-  //checkReceiveSauna433MHz();
+  checkReceiveSauna433MHz();
 
   if ((long)(millis() - MeasureTimeLast > MeasureTime_Period))
   {
@@ -485,6 +485,7 @@ void checkEth(void) {
 #ifdef DEBUG
     Serial.println(F("eth."));
 #endif
+    //while ((size = client.available()) > 0) { client.read(); }
     while (client.available() > 0) { client.read(); }
 
     client.print(temp1);
@@ -554,8 +555,8 @@ void read_sensors(void)
       getHumid();
       break;
     case 5:
-      gasZemPlyn = getgasZemPlyn();
-      gasCO = getgasCO();
+      //gasZemPlyn = getgasZemPlyn();
+      //gasCO = getgasCO();
     break;
   }
   read_sensors_state++;
