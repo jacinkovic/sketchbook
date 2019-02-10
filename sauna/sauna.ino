@@ -1,11 +1,8 @@
+#include <Wire.h> //LCD
 #include <LiquidCrystal_I2C.h>
 #include <OneWire.h>
 #include <avr/wdt.h>
-#include <VirtualWire.h>  //433
 #include <EEPROM.h>
-
-const int pin433MHz = 12;
-byte count433MHz = 1;
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
@@ -26,11 +23,10 @@ const long int getTempUpdateTimePeriod = 30 * 1000L;
 long int getTempUpdateTime;
 const long int releGoUpdateTimePeriod = 1000;
 long int releGoUpdateTime;
-const long int send433MHzUpdateTimePeriod = 30 * 1000L;
-long int send433MHzUpdateTime;
+const long int sendSerialUpdateTimePeriod = 1 * 1000L;
+long int sendSerialUpdateTime;
 
-//const long AutoShutdownTime = 3 *60*60L;
-const long AutoShutdownTime = 4 * 60 * 60L;
+const long AutoShutdownTime = 4.5 * 60 * 60L;
 //const int InitNastTemp = 65;
 
 int pinKeyGo = A0;
@@ -211,22 +207,19 @@ void setup()
   pinMode(PinReleA, OUTPUT);
   pinMode(PinReleB, OUTPUT);
 
-  init433MHz();
-  send433MHzUpdateTime = millis() + send433MHzUpdateTimePeriod;
+  sendSerialUpdateTime = millis() + sendSerialUpdateTimePeriod;
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(F("Najprv skontroluj:"));
-  wdt_reset(); delay(1000);
   lcd.setCursor(0, 1);
   lcd.print(F("- je pec cista?"));
-  wdt_reset(); delay(3000);
   lcd.setCursor(0, 2);
   lcd.print(F("- je vetrak zavrety?"));
-  wdt_reset(); delay(3000);
   lcd.setCursor(0, 3);
   lcd.print(F("- su dvere zavrete?"));
-  wdt_reset(); delay(4000);
+  wdt_reset(); delay(5000);
+  wdt_reset();
   lcd.clear();
 
 }
@@ -259,9 +252,9 @@ void loop()
     releGoUpdateTime = millis() + releGoUpdateTimePeriod;
   }
 
-  if (millis() > send433MHzUpdateTime) {
-    send433MHz();
-    send433MHzUpdateTime = millis() + send433MHzUpdateTimePeriod;
+  if (millis() > sendSerialUpdateTime) {
+    sendSerial();
+    sendSerialUpdateTime = millis() + sendSerialUpdateTimePeriod;
   }
 
 
@@ -308,6 +301,8 @@ void vypisSkutTemp(int cislo)
   lcd.setCursor(0 + 7, 3);
   lcd.write((byte)6); //bodka
   vypisVelkeCislicu(c3, 0 + 8);
+  //lcd.setCursor(0 + 8, 3);
+  //lcd.print(c3); //desatinne cislo
 };
 
 void vypisVelkeCislicu(int cislo, int x_pos)
@@ -339,12 +334,12 @@ float getTemp() {
   }
 
   if ( OneWire::crc8( addr, 7) != addr[7]) {
-    Serial.println(F("CRC is not valid!"));
+    //Serial.println(F("CRC is not valid!"));
     return -1000;
   }
 
   if ( addr[0] != 0x10 && addr[0] != 0x28) {
-    Serial.print(F("Device is not recognized"));
+    //Serial.print(F("Device is not recognized"));
     return -1000;
   }
 
@@ -619,43 +614,20 @@ void vypisStav(void)
 
 
 
-void init433MHz(void)
+void sendSerial(void)
 {
-  // Initialise the IO and ISR
-  vw_set_tx_pin(pin433MHz);
-  //vw_set_rx_pin(receive_pin);
-  //vw_set_ptt_pin(transmit_en_pin);
-  //vw_set_ptt_inverted(true); // Required for DR3100
-  vw_setup(2000);       // Bits per sec
-}
-
-
-void send433MHz(void)
-{
-
-  Serial.println("Send433MHz");
-  char msg[12] = {
-    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '
-  };
-
-  msg[0] = 'S';
-  msg[1] = skutTemp / 10;
-  msg[2] = skutTemp % 10;
-  msg[3] = nastTemp / 10;
-  msg[4];
-  msg[5];
-  msg[6] = casVyp / 3600;
-  msg[7] = (casVyp / 60) - (casVyp / 3600) * 60;
-  msg[8] = ohrevSpirala[1];
-  msg[9] = ohrevSpirala[2];
-  msg[10] = ohrevSpirala[3];
-
-  // replace chr 11 with count (#)
-  msg[11] = count433MHz;
-  //Serial.println(msg[1]);
-  vw_send((uint8_t *)msg, 12);
-  vw_wait_tx(); // Wait until the whole message is gone
-  count433MHz++;
+  Serial.print ("S");
+  Serial.print (" ");
+  Serial.print (skutTemp);
+  Serial.print (" ");
+  Serial.print (nastTemp);
+  Serial.print (" ");
+  Serial.print (casVyp / 60);
+  Serial.print (" ");
+  Serial.print (ohrevSpirala[1]+ohrevSpirala[2]+ohrevSpirala[3]);
+  Serial.print (" ");
+  Serial.print (millis() / 1000);
+  Serial.println ();
 }
 
 
@@ -663,17 +635,17 @@ void send433MHz(void)
 
 
 void saveNastTemp(void) {
-  int address = 100;
+  int address = 110;
   int value = nastTemp / 10;
 
   byte old = EEPROM.read(address);
 
   if (old != value) {
     EEPROM.write(address, value);
-    Serial.print(F("NastTemp saved to EEPROM saved at: "));
-    Serial.print(address);
-    Serial.print(F(" value: "));
-    Serial.println(value);
+    //Serial.print(F("NastTemp saved to EEPROM saved at: "));
+    //Serial.print(address);
+    //Serial.print(F(" value: "));
+    //Serial.println(value);
 
   }
 }
