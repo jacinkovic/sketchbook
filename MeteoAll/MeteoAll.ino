@@ -3,17 +3,17 @@
 #include <OneWire.h>
 #include <avr/wdt.h>
 #include <EtherCard.h>   //old library, but works with Mirf
-
+#include "DHT.h"
 
 #define   nobits   40//36
-#define   smin   7500
-#define   smax   9900
-#define   semin   250
-#define   semax   750
-#define   lmin   1700
-#define   lmax   2300
-#define   hmin   3700
-#define   hmax   4300
+#define   smin   7500L
+#define   smax   9900L
+#define   semin   250L
+#define   semax   750L
+#define   lmin   1700L
+#define   lmax   2300L
+#define   hmin   3700L
+#define   hmax   4300L
 #define ReceiverPin 2
 
 const int VBatPin = A0;
@@ -30,7 +30,9 @@ unsigned long rec_time_Rain = Rec_Timeout_StartValue;
 
 int recTimeoutStat; 
 
-String code, chksum_raingauge, chksum_combsensor;
+char chksum_raingauge[4], chksum_combsensor[4];
+char code[40];
+
 int ID;
 int batt_combsensor=-1, batt_raingauge=-1;  //initial value as not functional
 int windButton;
@@ -76,6 +78,14 @@ byte Ethernet::buffer[500]; // tcp/ip send and receive buffer
 BufferFiller bfill;
 char buff[12];
 
+const byte DHTPIN = 7; // what pin we're connected to
+#define DHTTYPE DHT22 // DHT 22 (AM2302)
+
+DHT dht(DHTPIN, DHTTYPE);
+
+int DHTTemp;
+int DHTHumid;
+
 int ethCounter;
 int runtimeCounter;
 
@@ -112,10 +122,13 @@ float bmp085temperature;
 float bmp085pressure;
 
 
+const int buzzer = 9; //buzzer to arduino pin 9
 
 void setup(){
 
   wdt_enable(WDTO_8S);
+
+  pinMode(buzzer, OUTPUT); // Set buzzer 
 
   time = millis();
 
@@ -134,6 +147,8 @@ void setup(){
   Wire.begin();
   bmp085Calibration();
 
+  dht.begin();
+
   ether.begin(sizeof Ethernet::buffer, mymac);
   ether.staticSetup(myip);
 
@@ -148,7 +163,14 @@ void setup(){
   //end of first read
 
 
-  wdt_reset();
+  for (int i=0; i<3; i++){
+    wdt_reset();
+    tone(buzzer, 2000); // Send 1KHz sound signal...
+    delay(300);
+    tone(buzzer, 1000); // Send 1KHz sound signal...
+    delay(300);
+  }
+  noTone(buzzer);     // Stop sound...
 
   Serial.println(F("loop();"));   
 
@@ -159,16 +181,20 @@ void loop(){
 
   //read weatherstation radio signal
   int ret_code = RCode();
+
   //decode weatherstation radio signal
   if(ret_code == 0){
-    wdt_reset();
+    tone(buzzer, 5000);
     //SerialCode();
     getGeneral();
     getRain();
     getWindDirectionGust();
     getWindAverage();
-    getTempHumid();     
+    getTempHumid();
+    noTone(buzzer);    
   }
+
+
 
 
   //ETHERNET PART        
@@ -178,8 +204,9 @@ void loop(){
   //check other sensors
   if(time > common_TimeAgain)  //watchdog
   {
+    //tone(buzzer, 5000);
     common_TimeAgain = time + common_TimePeriod;
-    
+
     //bmp085
     bmp085temperature = (float)(bmp085GetTemperature(bmp085ReadUT()))/10;
     bmp085pressure = (float)bmp085GetPressure(bmp085ReadUP())/100 + BaseAltitudeCoef; //hpa
@@ -190,6 +217,7 @@ void loop(){
     //getVBat();
     getTempOut1();
     getTempOut2();
+    getDHT();
     Set_windDirAvg();
     runtimeCounter++;
     getRecTimeoutStat();
@@ -445,18 +473,27 @@ void SerialAll(void)
   Serial.print(F(" TempOut2="));
   Serial.print(TempOut2);
 
-  Serial.print(F(" recTimeoutStat="));
-  Serial.println(recTimeoutStat);  
-
-  Serial.print(F(" EtherTimeout="));
-  long tmp = (EtherQueryLast - time) / 1000;
-  Serial.print(tmp);  
-
-  Serial.print(F(" ethCounter="));
-  Serial.println(ethCounter);  
+  Serial.print(F(" DHTTemp="));
+  Serial.print(DHTTemp);
+  Serial.print(F(" DHTHumid="));
+  Serial.print(DHTHumid);
 
   Serial.print(F(" runtimeCounter="));
-  Serial.println(runtimeCounter);  
+  Serial.println(runtimeCounter);
+  
+  
+//  Serial.print(F(" recTimeoutStat="));
+//  Serial.println(recTimeoutStat);  
+//
+//  Serial.print(F(" EtherTimeout="));
+//  long tmp = (EtherQueryLast - time) / 1000;
+//  Serial.print(tmp);  
+//
+//  Serial.print(F(" ethCounter="));
+//  Serial.println(ethCounter);  
+
+//  Serial.print(F("available memory="));
+//  Serial.println(freeRam(), DEC);
 
 } 
 
@@ -552,6 +589,9 @@ int RCode()
 
 {
 
+  int i, ii;
+  long startMicros, endMicros;
+
   //String code = "001000000110110010101101000000000010"; //rain sensor
   //String code = "xxx110101010110111011100001101000001";  //wind direction + gust
   //String code = "xxx110101010110111011100001101000001";  //
@@ -570,59 +610,72 @@ int RCode()
   //code="110101010110100000000000011000001011" //wavg=1.2 
 
   //  code = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-  code = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-  int i, ii;
-  long startMicros = micros(), endMicros;
-
+  for(i=0; i<40; i++){ 
+    code[i] = 'x';
+  }
+  
   if (digitalRead(ReceiverPin)) return 1;
 
+  startMicros = micros();
   while(!digitalRead(ReceiverPin))
   {
-    if ((micros()-startMicros)>smax)
+    if ((micros()-startMicros)>smax){
       return 2;
+    }
   }
 
-  if ((micros()-startMicros)<smin)
+  if ((micros()-startMicros)<smin){
     return 3;
+  }
+
+  //Serial.print(F("after3 "));
 
   startMicros = micros();
   while(digitalRead(ReceiverPin))
   {
-    if ((micros()-startMicros)>semax)
+    if ((micros()-startMicros)>semax){
       return 4;
+    }
   }
 
-  if ((micros()-startMicros)<semin)
+  if ((micros()-startMicros)<semin){ 
     return 5;
+  }
 
   for(i = 0; i < nobits; i++)
   {
     startMicros = micros();
     while(!digitalRead(ReceiverPin))
     { 
-      if ((micros()-startMicros)>smax) //protection against deadlock
+      if ((micros()-startMicros)>smax){ //protection against deadlock
         return 6;
+      }
     }
 
     endMicros = micros();
     if(((endMicros-startMicros)>lmin)&&((endMicros-startMicros)<lmax)){
-      code.setCharAt(i,'0');
+      code[i]='0';
     }
     else
+    {
       if(((endMicros-startMicros)>hmin)&&((endMicros-startMicros)<hmax)){
-        code.setCharAt(i,'1');
+        code[i]='1';
         //Serial.print(F("&"));
       }
+    }
 
     startMicros = micros();
     while(digitalRead(ReceiverPin))
     {
-      if ((micros()-startMicros)>semax)
+      if ((micros()-startMicros)>semax){
         return 7;
+      }
     }
 
-    if ((micros()-startMicros)<semin)
+    if ((micros()-startMicros)<semin){
       return 8;
+    }
+
   }
 
   //SerialCode();
@@ -631,11 +684,12 @@ int RCode()
   //code = "101010101010100101001000010001000100xxxx";
 
   //remove x chars from the beginning - if exist
+  //Serial.print(F("removex "));
   for(int a=0; a<3; a++){
-    //Serial.println(code.charAt(1));
-    if(code.charAt(0)=='x'){
+    //Serial.println(code[1));
+    if(code[0]=='x'){
       for(int b=0; b<nobits-1; b++){ 
-        code.setCharAt(b, code.charAt(b+1));
+        code[b] = code[b+1];
       }
     }  
   }
@@ -643,13 +697,20 @@ int RCode()
   //SerialCode();
 
   //check for x inside the code
+  //Serial.print(F("checkx "));
   for(int b=0; b<36; b++){ 
-    if(code.charAt(b) == 'x'){
+    if(code[b] == 'x'){
       //Serial.println(F(" ERR >>> x in code <<<"));
       return 9;
     }
   }
 
+//  Serial.print(F("Code="));
+//  for(i=0; i<40; i++){ 
+//    Serial.print(code[i]);
+//  }
+//  Serial.println();
+//  
   get_checksum();
 
   return 0;
@@ -684,7 +745,7 @@ int get_checksum(void)
 
     //Serial.println(F(" "));
   for(i=0; i<8; i++){
-    n[i] = bcd_conv_dec(code.charAt(i*4+0), code.charAt(i*4+1), code.charAt(i*4+2), code.charAt(i*4+3));  
+    n[i] = bcd_conv_dec(code[i*4+0], code[i*4+1], code[i*4+2], code[i*4+3]);  
     na_combsensor = na_combsensor - n[i];
     na_raingauge = na_raingauge + n[i];
     //Serial.print(n[i]); 
@@ -710,7 +771,8 @@ int get_checksum(void)
 //*****************************************************
 void bcd_conv_bin(int in, int ver)
 {
-  String chksum = "0000";
+  int i;
+  char chksum[4] = {'0','0','0','0'};
 
   //negative values
   while(in<=-16){ 
@@ -730,19 +792,19 @@ void bcd_conv_bin(int in, int ver)
     }
 
     if (in>=8){ 
-      chksum.setCharAt(3,'1'); 
+      chksum[3]='1'; 
       in = in - 8;
     } 
     if (in>=4){ 
-      chksum.setCharAt(2,'1');
+      chksum[2]='1';
       in = in - 4;
     } 
     if (in>=2){ 
-      chksum.setCharAt(1,'1'); 
+      chksum[1]='1'; 
       in = in - 2;
     } 
     if (in>=1){ 
-      chksum.setCharAt(0,'1');
+      chksum[0]='1';
       in = in - 1;
     } 
   }
@@ -751,11 +813,15 @@ void bcd_conv_bin(int in, int ver)
   //two type of sensors
   if(ver==1){ 
     //Serial.print(F("chksum_combsens= "));
-    chksum_combsensor = chksum; 
+    for(i=0; i<4; i++){ 
+      chksum_combsensor[i] = chksum[i]; 
+    }
   }
   if(ver==2){ 
     //Serial.print(F("chksum_raingauge= "));
-    chksum_raingauge = chksum; 
+    for(i=0; i<4; i++){ 
+      chksum_raingauge[i] = chksum[i]; 
+    }
   }
   //Serial.print(chksum);
   //Serial.println(F("; "));
@@ -764,14 +830,14 @@ void bcd_conv_bin(int in, int ver)
 }
 
 
-int check_checksum(String in)
+int check_checksum(char in[])
 {
   //checksum
   if
-    ((code.charAt(32)==in.charAt(0))&&
-    (code.charAt(33)==in.charAt(1))&&
-    (code.charAt(34)==in.charAt(2))&&
-    (code.charAt(35)==in.charAt(3)))
+    ((code[32]==in[0])&&
+    (code[33]==in[1])&&
+    (code[34]==in[2])&&
+    (code[35]==in[3]))
   { 
     //Serial.println(F("  Checksum OK "));
     return 1;
@@ -790,20 +856,22 @@ void getGeneral(void)
 {
   //ID
   ID = 
-    (code.charAt(7)=='1'?1:0)*128 +
-    (code.charAt(6)=='1'?1:0)*64 +
-    (code.charAt(5)=='1'?1:0)*32 +
-    (code.charAt(4)=='1'?1:0)*16 +
-    (code.charAt(3)=='1'?1:0)*8 +
-    (code.charAt(2)=='1'?1:0)*4 +
-    (code.charAt(1)=='1'?1:0)*2 +
-    (code.charAt(0)=='1'?1:0)*1;
-  //Serial.print(F(" ID="));
-  //Serial.println(ID);
+    (code[7]=='1'?1:0)*128 +
+    (code[6]=='1'?1:0)*64 +
+    (code[5]=='1'?1:0)*32 +
+    (code[4]=='1'?1:0)*16 +
+    (code[3]=='1'?1:0)*8 +
+    (code[2]=='1'?1:0)*4 +
+    (code[1]=='1'?1:0)*2 +
+    (code[0]=='1'?1:0)*1;
+    
+    //Serial.println(F("Received: General"));
+    //Serial.print(F(" ID="));
+    //Serial.println(ID);
 
-  //Serial.print(F(" batt="));
-  //if(batt==0) Serial.println(F("OK")); 
-  //else Serial.println(F("LOW"));
+    //Serial.print(F(" batt="));
+    //if(batt==0) Serial.println(F("OK")); 
+    //else Serial.println(F("LOW"));
 }
 
 
@@ -814,25 +882,25 @@ void getTempHumid(void)
   int tempOut_tmp;
 
   if 
-    ((code.charAt(9)!='1')||
-    (code.charAt(10)!='1'))  
+    ((code[9]!='1')||
+    (code[10]!='1'))  
   {
-    Serial.println(F("TempHumid"));
+    Serial.println(F("Received: TempHumid"));
     if(check_checksum(chksum_combsensor)==1)
     { 
       int tempOut_tmp= 
-        (code.charAt(23)=='1'?1:0)*2048 +
-        (code.charAt(22)=='1'?1:0)*1024 +
-        (code.charAt(21)=='1'?1:0)*512 +
-        (code.charAt(20)=='1'?1:0)*256 +
-        (code.charAt(19)=='1'?1:0)*128 +
-        (code.charAt(18)=='1'?1:0)*64 +
-        (code.charAt(17)=='1'?1:0)*32 +
-        (code.charAt(16)=='1'?1:0)*16 +
-        (code.charAt(15)=='1'?1:0)*8 +
-        (code.charAt(14)=='1'?1:0)*4 +
-        (code.charAt(13)=='1'?1:0)*2 +
-        (code.charAt(12)=='1'?1:0)*1;
+        (code[23]=='1'?1:0)*2048 +
+        (code[22]=='1'?1:0)*1024 +
+        (code[21]=='1'?1:0)*512 +
+        (code[20]=='1'?1:0)*256 +
+        (code[19]=='1'?1:0)*128 +
+        (code[18]=='1'?1:0)*64 +
+        (code[17]=='1'?1:0)*32 +
+        (code[16]=='1'?1:0)*16 +
+        (code[15]=='1'?1:0)*8 +
+        (code[14]=='1'?1:0)*4 +
+        (code[13]=='1'?1:0)*2 +
+        (code[12]=='1'?1:0)*1;
 
       // Calculate negative temperature
       if((tempOut_tmp & 0x800) == 0x800)
@@ -842,20 +910,20 @@ void getTempHumid(void)
       tempOut = (float)(tempOut_tmp) / 10;
 
       humidOut = 
-        (code.charAt(31)=='1'?1:0)*8 +
-        (code.charAt(30)=='1'?1:0)*4 +
-        (code.charAt(29)=='1'?1:0)*2 +
-        (code.charAt(28)=='1'?1:0)*1;
+        (code[31]=='1'?1:0)*8 +
+        (code[30]=='1'?1:0)*4 +
+        (code[29]=='1'?1:0)*2 +
+        (code[28]=='1'?1:0)*1;
       humidOut = humidOut * 10 +
-        (code.charAt(27)=='1'?1:0)*8 +
-        (code.charAt(26)=='1'?1:0)*4 +
-        (code.charAt(25)=='1'?1:0)*2 +
-        (code.charAt(24)=='1'?1:0)*1;
+        (code[27]=='1'?1:0)*8 +
+        (code[26]=='1'?1:0)*4 +
+        (code[25]=='1'?1:0)*2 +
+        (code[24]=='1'?1:0)*1;
 
       //battery state
-      batt_combsensor=(code.charAt(8)=='1'?1:0)*1;
+      batt_combsensor=(code[8]=='1'?1:0)*1;
       //button
-      tempOutButton=(code.charAt(11)=='1'?1:0);
+      tempOutButton=(code[11]=='1'?1:0);
 
       rec_time_TempHumid = millis();
 
@@ -875,39 +943,39 @@ void getTempHumid(void)
 void getWindAverage(void)
 {
   if 
-    ((code.charAt(9)=='1')&&
-    (code.charAt(10)=='1')&&
-    (code.charAt(12)=='1')&&
-    (code.charAt(13)=='0')&&
-    (code.charAt(14)=='0')&&
-    (code.charAt(15)=='0')&&
-    (code.charAt(16)=='0')&&
-    (code.charAt(17)=='0')&&
-    (code.charAt(18)=='0')&&
-    (code.charAt(19)=='0')&&
-    (code.charAt(20)=='0')&&
-    (code.charAt(21)=='0')&&
-    (code.charAt(22)=='0')&&
-    (code.charAt(23)=='0'))  
+    ((code[9]=='1')&&
+    (code[10]=='1')&&
+    (code[12]=='1')&&
+    (code[13]=='0')&&
+    (code[14]=='0')&&
+    (code[15]=='0')&&
+    (code[16]=='0')&&
+    (code[17]=='0')&&
+    (code[18]=='0')&&
+    (code[19]=='0')&&
+    (code[20]=='0')&&
+    (code[21]=='0')&&
+    (code[22]=='0')&&
+    (code[23]=='0'))  
   {
-    Serial.println(F("WindAverage"));
+    Serial.println(F("Received: WindAverage"));
     if(check_checksum(chksum_combsensor)==1)
     { 
       windAvg = 
-        (code.charAt(31)=='1'?1:0)*128 +
-        (code.charAt(30)=='1'?1:0)*64 +
-        (code.charAt(29)=='1'?1:0)*32 +
-        (code.charAt(28)=='1'?1:0)*16 +
-        (code.charAt(27)=='1'?1:0)*8 +
-        (code.charAt(26)=='1'?1:0)*4 +
-        (code.charAt(25)=='1'?1:0)*2 +
-        (code.charAt(24)=='1'?1:0)*1;
+        (code[31]=='1'?1:0)*128 +
+        (code[30]=='1'?1:0)*64 +
+        (code[29]=='1'?1:0)*32 +
+        (code[28]=='1'?1:0)*16 +
+        (code[27]=='1'?1:0)*8 +
+        (code[26]=='1'?1:0)*4 +
+        (code[25]=='1'?1:0)*2 +
+        (code[24]=='1'?1:0)*1;
       windAvg = windAvg/5;
 
       //battery state
-      batt_combsensor=(code.charAt(8)=='1'?1:0)*1;
+      batt_combsensor=(code[8]=='1'?1:0)*1;
       //button
-      windButton=(code.charAt(11)=='1'?1:0);
+      windButton=(code[11]=='1'?1:0);
 
       rec_time_WindAverage = millis();
 
@@ -924,41 +992,41 @@ void getWindAverage(void)
 void getWindDirectionGust(void)
 {
   if 
-    ((code.charAt(9)=='1')&&
-    (code.charAt(10)=='1')&&
-    (code.charAt(12)=='1')&&
-    (code.charAt(13)=='1')&&
-    (code.charAt(14)=='1'))
+    ((code[9]=='1')&&
+    (code[10]=='1')&&
+    (code[12]=='1')&&
+    (code[13]=='1')&&
+    (code[14]=='1'))
   {     
-    Serial.println(F("WindDirectionGust"));
+    Serial.println(F("Received: WindDirectionGust"));
     if(check_checksum(chksum_combsensor)==1)
     {    
       windDir = 
-        (code.charAt(23)=='1'?1:0)*256 +
-        (code.charAt(22)=='1'?1:0)*128 +
-        (code.charAt(21)=='1'?1:0)*64 +
-        (code.charAt(20)=='1'?1:0)*32 +
-        (code.charAt(19)=='1'?1:0)*16 +
-        (code.charAt(18)=='1'?1:0)*8 +
-        (code.charAt(17)=='1'?1:0)*4 +
-        (code.charAt(16)=='1'?1:0)*2 +
-        (code.charAt(15)=='1'?1:0)*1;
+        (code[23]=='1'?1:0)*256 +
+        (code[22]=='1'?1:0)*128 +
+        (code[21]=='1'?1:0)*64 +
+        (code[20]=='1'?1:0)*32 +
+        (code[19]=='1'?1:0)*16 +
+        (code[18]=='1'?1:0)*8 +
+        (code[17]=='1'?1:0)*4 +
+        (code[16]=='1'?1:0)*2 +
+        (code[15]=='1'?1:0)*1;
       windGust = 
-        (code.charAt(31)=='1'?1:0)*128 +
-        (code.charAt(30)=='1'?1:0)*64 +
-        (code.charAt(29)=='1'?1:0)*32 +
-        (code.charAt(28)=='1'?1:0)*16 +
-        (code.charAt(27)=='1'?1:0)*8 +
-        (code.charAt(26)=='1'?1:0)*4 +
-        (code.charAt(25)=='1'?1:0)*2 +
-        (code.charAt(24)=='1'?1:0)*1;
+        (code[31]=='1'?1:0)*128 +
+        (code[30]=='1'?1:0)*64 +
+        (code[29]=='1'?1:0)*32 +
+        (code[28]=='1'?1:0)*16 +
+        (code[27]=='1'?1:0)*8 +
+        (code[26]=='1'?1:0)*4 +
+        (code[25]=='1'?1:0)*2 +
+        (code[24]=='1'?1:0)*1;
 
       windGust = windGust/5;
 
       //battery state
-      batt_combsensor=(code.charAt(8)=='1'?1:0)*1;
+      batt_combsensor=(code[8]=='1'?1:0)*1;
       //button
-      windButton=(code.charAt(11)=='1'?1:0);
+      windButton=(code[11]=='1'?1:0);
 
       rec_time_WindDirectionGust = millis();
 
@@ -979,37 +1047,37 @@ void getWindDirectionGust(void)
 void getRain(void)
 {
   if 
-    ((code.charAt(9)=='1')&&
-    (code.charAt(10)=='1')&&
-    (code.charAt(11)=='0')&&
-    (code.charAt(12)=='1')&&
-    (code.charAt(13)=='1')&&
-    (code.charAt(14)=='0')&&
-    (code.charAt(15)=='0'))
+    ((code[9]=='1')&&
+    (code[10]=='1')&&
+    (code[11]=='0')&&
+    (code[12]=='1')&&
+    (code[13]=='1')&&
+    (code[14]=='0')&&
+    (code[15]=='0'))
   {
-    Serial.println(F("Rain"));
+    Serial.println(F("Received: Rain"));
     if(check_checksum(chksum_raingauge)==1)
     {
-      rain = (code.charAt(31)=='1'?1:0)*32768 +
-        (code.charAt(30)=='1'?1:0)*16384 +
-        (code.charAt(29)=='1'?1:0)*8192 +
-        (code.charAt(28)=='1'?1:0)*4096 +
-        (code.charAt(27)=='1'?1:0)*2048 +
-        (code.charAt(26)=='1'?1:0)*1024 +
-        (code.charAt(25)=='1'?1:0)*512 +
-        (code.charAt(24)=='1'?1:0)*256 +
-        (code.charAt(23)=='1'?1:0)*128 +
-        (code.charAt(22)=='1'?1:0)*64 +
-        (code.charAt(21)=='1'?1:0)*32 +
-        (code.charAt(20)=='1'?1:0)*16 +
-        (code.charAt(19)=='1'?1:0)*8 +
-        (code.charAt(18)=='1'?1:0)*4 +
-        (code.charAt(17)=='1'?1:0)*2 +
-        (code.charAt(16)=='1'?1:0)*1;
+      rain = (code[31]=='1'?1:0)*32768 +
+        (code[30]=='1'?1:0)*16384 +
+        (code[29]=='1'?1:0)*8192 +
+        (code[28]=='1'?1:0)*4096 +
+        (code[27]=='1'?1:0)*2048 +
+        (code[26]=='1'?1:0)*1024 +
+        (code[25]=='1'?1:0)*512 +
+        (code[24]=='1'?1:0)*256 +
+        (code[23]=='1'?1:0)*128 +
+        (code[22]=='1'?1:0)*64 +
+        (code[21]=='1'?1:0)*32 +
+        (code[20]=='1'?1:0)*16 +
+        (code[19]=='1'?1:0)*8 +
+        (code[18]=='1'?1:0)*4 +
+        (code[17]=='1'?1:0)*2 +
+        (code[16]=='1'?1:0)*1;
       rain = rain/4;
 
       //battery state
-      batt_raingauge=(code.charAt(8)=='1'?1:0)*1;
+      batt_raingauge=(code[8]=='1'?1:0)*1;
 
       rec_time_Rain = millis();
 
@@ -1038,7 +1106,7 @@ void SerialCode(void)
   for(int i = 0; i<9+0; i++){ //+1 for debug
     for(int ii = 0; ii<4; ii++){
       Serial.print(F(""));
-      Serial.print(code.charAt(ii+i*4));
+      Serial.print(code[ii+i*4]);
     }
     Serial.print(F(" "));
   }    
@@ -1211,7 +1279,8 @@ void CheckEth(void)
   word len = ether.packetReceive();
   word pos = ether.packetLoop(len);
   if (pos){
-
+    tone(buzzer,5000);
+    
     bfill = ether.tcpOffset();
 
     Serial.print(F("Eth "));  
@@ -1236,11 +1305,13 @@ void CheckEth(void)
 
       addFloatTobfill(TempOut1);
       addFloatTobfill(TempOut2);
+      addFloatTobfill(DHTTemp);
+      addFloatTobfill(DHTHumid);
 
-      addFloatTobfill(recTimeoutStat);  
-
-      addFloatTobfill(ethCounter);
       addFloatTobfill(runtimeCounter);
+
+//      addFloatTobfill(recTimeoutStat);  
+//      addFloatTobfill(ethCounter);
     }
 
     if(recTimeoutStat > 0){
@@ -1277,9 +1348,29 @@ void CheckEth(void)
     Serial.println();  
     ethCounter++;    
   }
+  
+  noTone(buzzer);
+  
+}
+
+
+void getDHT(void){
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  if (isnan(t) || isnan(h)) {
+    Serial.println(F("DHT: failed"));
+  }
+  else {
+    DHTTemp = t;
+    DHTHumid = h;
+  }  
 
 }
 
 
-
+int freeRam () {
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
 
