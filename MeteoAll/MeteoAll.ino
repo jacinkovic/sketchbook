@@ -416,23 +416,26 @@ unsigned long bmp085ReadUP()
 
 
 void addFloatTobfill(float in)
-{
-  Serial.print(in);
-  Serial.print(F(" "));
-
-  in = (floor(in*100))/100 ;
+{ 
+  in = (floor(in*10))/10 ;
   long in_int = abs(in);
   if(in<0){ 
     bfill.emit_p(PSTR("-")); 
+    Serial.print("-");
   } 
-  long in_des = abs((float)in*100) - in_int*100;
+  long in_des = abs((float)in*10) - in_int*10;
 
   ltoa(in_int, buff, 10);
+  Serial.print(in_int);
   bfill.emit_raw(buff, strlen(buff));
   bfill.emit_p(PSTR("."));
+  Serial.print(".");
   ltoa(in_des, buff, 10);
+  Serial.print(in_des);
   bfill.emit_raw(buff, strlen(buff));
   bfill.emit_p(PSTR(" "));     
+  Serial.print(F(" "));
+
 }
 
 
