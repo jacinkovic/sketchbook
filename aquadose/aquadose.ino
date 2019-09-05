@@ -3,17 +3,12 @@
 #include <avr/wdt.h>
 #include <OneWire.h>
 #include <UIPEthernet.h>
+#include <EEPROM.h>
 EthernetServer server = EthernetServer(80);
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
-unsigned long P1starttime, P1pumptime;
-unsigned long P2starttime, P2pumptime;
-unsigned long P3starttime, P3pumptime;
-unsigned long ResetTime;
-
-const unsigned long WaitPeriod = 1000L;
-unsigned long WaitLast;
+#define startEEPROMloc 100
 
 void(* resetFunc) (void) = 0;//declare reset function at address 0
 
@@ -21,15 +16,51 @@ void(* resetFunc) (void) = 0;//declare reset function at address 0
 #define M 60uL
 #define H 3600uL
 
+#define DOPUMP    1
+#define DONOTPUMP 0
 
-#define PUMP     1
-#define NOPUMP   0
 
+#define PUMP1_PINOUTPUT        5
+#define PUMP2_PINOUTPUT        6
+#define PUMP3_PINOUTPUT        7
 
-#define PUMP1_PINOUTPUT  5
-#define PUMP2_PINOUTPUT  6
-#define PUMP3_PINOUTPUT  7
+#define BTNPUMP1_PINOUTPUT     8
+#define BTNPUMP2_PINOUTPUT     9
+#define BTNPUMP3_PINOUTPUT    10
+#define BTNSET_PINOUTPUT      11
+#define BTNADJ_PINOUTPUT   12
 
+const unsigned long WaitPeriod = 10000uL;
+unsigned long WaitLast;
+
+unsigned long ResetTime;
+
+typedef struct pump_type
+{
+  unsigned long start;
+  unsigned long duration;
+  int EEPROMloc_start;
+  int EEPROMloc_duration;
+};
+
+pump_type pump[4];
+
+typedef struct lcdpos_type
+{
+  int x;
+  int y;
+  int pump;
+  unsigned long timestep;
+}; 
+
+const lcdpos_type curpos_xy[] = { 
+  1, 0, 1, H,    4, 0, 1, M,    2, 1, 1, S, 
+  1+7, 0, 2, H,  4+7, 0, 2, M,  2+7, 1, 2, S,
+  1+14, 0, 3, H, 4+14, 0, 3, M, 2+14, 1, 3, S, 
+};   
+
+const int curpos_loc_max = 9;
+int curpos_loc = curpos_loc_max;
 
 
 void setup()
@@ -38,37 +69,50 @@ void setup()
 
   Serial.begin(9600);
 
-//  P1starttime = 12*H; //in minutes
-//  P1pumptime = 7*S;  //in secs
-//  P2starttime = 23*H+59*M; 
-//  P2pumptime = 15*S;
-//  P3starttime = 0*H+0*M+0*S; //reset after do
-//  P3pumptime = 0*S;
-//  ResetTime = 24*H; //reset after end of cycle
-
-  P1starttime = 10*S; //in minutes
-  P1pumptime = 7*S;  //in secs
-  P2starttime = 20*S; 
-  P2pumptime = 5*S;
-  P3starttime = 35*S; //reset after do
-  P3pumptime = 7*S;
-  ResetTime = 2*M; //reset after end of cycle
-
-
   lcd.begin(20, 4);              // initialize the lcd
   lcd.clear();
   lcd.noCursor();
   lcd.backlight();
   lcd.home ();                   // go home
-  lcd.print(F("AQUADOSE 2019"));
+
 
   pinMode(PUMP1_PINOUTPUT, OUTPUT);
   pinMode(PUMP2_PINOUTPUT, OUTPUT);
   pinMode(PUMP3_PINOUTPUT, OUTPUT);
 
-  pump(1, NOPUMP);
-  pump(2, NOPUMP);
-  pump(3, NOPUMP);
+  pinMode(BTNPUMP1_PINOUTPUT, INPUT);
+  pinMode(BTNPUMP2_PINOUTPUT, INPUT);
+  pinMode(BTNPUMP3_PINOUTPUT, INPUT);
+  pinMode(BTNSET_PINOUTPUT, INPUT);
+  pinMode(BTNADJ_PINOUTPUT, INPUT);
+
+  dopump(1, DONOTPUMP);
+  dopump(2, DONOTPUMP);
+  dopump(3, DONOTPUMP);
+
+  ResetTime = 24*H; //reset after end of cycle
+
+  pump[1].EEPROMloc_start = startEEPROMloc;
+  pump[1].EEPROMloc_duration = pump[1].EEPROMloc_start + 4;
+  pump[2].EEPROMloc_start = pump[1].EEPROMloc_duration + 4;
+  pump[2].EEPROMloc_duration = pump[2].EEPROMloc_start + 4;
+  pump[3].EEPROMloc_start = pump[2].EEPROMloc_duration + 4;
+  pump[3].EEPROMloc_duration = pump[3].EEPROMloc_start + 4;
+
+
+  pump[1].start = EEPROMReadlong(pump[1].EEPROMloc_start); 
+  pump[1].duration = EEPROMReadlong(pump[1].EEPROMloc_duration);  
+  pump[2].start = EEPROMReadlong(pump[2].EEPROMloc_start); 
+  pump[2].duration = EEPROMReadlong(pump[2].EEPROMloc_duration);  
+  pump[3].start = EEPROMReadlong(pump[3].EEPROMloc_start); 
+  pump[3].duration = EEPROMReadlong(pump[3].EEPROMloc_duration);  
+
+if(pump[1].duration > M){ 
+  pump[1].start = 0; pump[1].duration = 0; 
+  pump[2].start = 0; pump[2].duration = 0; 
+  pump[3].start = 0; pump[3].duration = 0; 
+}
+  
 
   //  uint8_t mac[6] = {
   //    0x74, 0x73, 0x71, 0x2D, 0x32, 0x37                         };
@@ -98,6 +142,18 @@ int cas (unsigned long time, int *hours, int *minutes, int *seconds)
 
 
 
+void printlcdtime(int hours, int minutes){ 
+  if(hours<10){     
+    lcd.print(F("0")); 
+  }
+  lcd.print(hours);
+  lcd.print(F(":"));
+  if(minutes<10){     
+    lcd.print(F("0")); 
+  }
+  lcd.print(minutes);
+}  
+
 void printlcdtime(int hours, int minutes, int seconds){ 
   if(hours<10){     
     lcd.print(F("0")); 
@@ -113,7 +169,6 @@ void printlcdtime(int hours, int minutes, int seconds){
     lcd.print(F("0")); 
   }
   lcd.print(seconds);
-
 }  
 
 void printlcdtime(int seconds){ 
@@ -130,11 +185,11 @@ struct time{
 } 
 a;
 
-int checkpump(unsigned long starttime, unsigned long pumptime)
+int checkpump(unsigned long start, unsigned long duration)
 {
   unsigned long currtime = millis()/1000;
 
-  if ((currtime >= starttime) && (currtime < starttime+pumptime))
+  if ((currtime >= start) && (currtime < start+duration))
   {
     //time to pump
     return 1;
@@ -147,7 +202,7 @@ int checkpump(unsigned long starttime, unsigned long pumptime)
 
 };
 
-void pump(int pumpnum, int state)
+void dopump(int pumpnum, int state)
 {
   int pin;
 
@@ -167,7 +222,7 @@ void pump(int pumpnum, int state)
   }
 
 
-  if(state == PUMP){
+  if(state == DOPUMP){
     digitalWrite(pin, LOW);
   } 
   else {
@@ -196,81 +251,152 @@ void loop()
   //  }
 
 
-  lcd.setCursor (1, 1);        
-  lcd.print(F("P1 "));
-  cas(P1starttime, &a.hours, &a.mins, &a.secs);
-  printlcdtime(a.hours, a.mins, a.secs);
-  cas(P1pumptime, &a.hours, &a.mins, &a.secs);
-  lcd.print(F(" "));
+  lcd.setCursor (0, 0);        
+  //lcd.print(F("P1 "));
+  cas(pump[1].start, &a.hours, &a.mins, &a.secs);
+  printlcdtime(a.hours, a.mins);
+  cas(pump[1].duration, &a.hours, &a.mins, &a.secs);
+  lcd.setCursor (0+1, 1);        
   printlcdtime(a.secs);
-  lcd.print(F("s "));
+  lcd.print(F("s"));
 
 
-  lcd.setCursor (1, 2);        
-  lcd.print(F("P2 "));
-  cas(P2starttime, &a.hours, &a.mins, &a.secs);
-  printlcdtime(a.hours, a.mins, a.secs);
-  cas(P2pumptime, &a.hours, &a.mins, &a.secs);
-  lcd.print(F(" "));
+  lcd.setCursor (7, 0);        
+  cas(pump[2].start, &a.hours, &a.mins, &a.secs);
+  printlcdtime(a.hours, a.mins);
+  cas(pump[2].duration, &a.hours, &a.mins, &a.secs);
+  lcd.setCursor (7+1, 1);        
   printlcdtime(a.secs);
-  lcd.print(F("s "));
+  lcd.print(F("s"));
 
-  lcd.setCursor (1, 3);        
-  lcd.print(F("P3 "));
-  cas(P3starttime, &a.hours, &a.mins, &a.secs);
-  printlcdtime(a.hours, a.mins, a.secs);
-  cas(P3pumptime, &a.hours, &a.mins, &a.secs);
-  lcd.print(F(" "));
+  lcd.setCursor (14, 0);        
+  cas(pump[3].start, &a.hours, &a.mins, &a.secs);
+  printlcdtime(a.hours, a.mins);
+  cas(pump[3].duration, &a.hours, &a.mins, &a.secs);
+  lcd.setCursor (14+1, 1);        
   printlcdtime(a.secs);
-  lcd.print(F("s "));
+  lcd.print(F("s"));
 
 
   //lcd.setCursor (0, 3);        
   //    lcd.print(F("192.168.1.207"));
   cas(millis()/1000,&a.hours, &a.mins, &a.secs);
 
-  lcd.setCursor (0, 0);        
-  lcd.print(F("ACT "));
+  lcd.setCursor (0, 3);        
+  //lcd.print(F("TIME:"));
   printlcdtime(a.hours, a.mins, a.secs);
-  lcd.print(F(" "));
-
-
-  lcd.setCursor (0, 1);   
-  if(checkpump(P1starttime, P1pumptime)==1)
-  {
-    lcd.write(B11011011); //pump   
-    pump(1, PUMP);
-  }
-  else
-  {
-    lcd.write(B00101101); //nopump
-    pump(1, NOPUMP);
-  }
 
 
   lcd.setCursor (0, 2);   
-  if(checkpump(P2starttime, P2pumptime)==1)
+  if((checkpump(pump[1].start, pump[1].duration)==1) || (digitalRead(BTNPUMP1_PINOUTPUT) == HIGH))
   {
-    lcd.write(B11011011); //pump   
-    pump(2, PUMP);
+    lcd.print("^^^^^");
+    dopump(1, DOPUMP);
   }
   else
-  {     
-    lcd.write(B00101101); //nopump
-    pump(2, NOPUMP);
+  {
+    lcd.print(F("     "));
+    dopump(1, DONOTPUMP);
   }
 
 
-  lcd.setCursor (0, 3);   
-  if(checkpump(P3starttime, P3pumptime)==1)
+  lcd.setCursor (7, 2);   
+  if((checkpump(pump[2].start, pump[2].duration)==1) || (digitalRead(BTNPUMP2_PINOUTPUT) == HIGH))
   {
-    lcd.write(B11011011); //pump
-    pump(3, PUMP);
+    lcd.print("^^^^^");
+    dopump(2, DOPUMP);
   }
   else
   {     
-    lcd.write(B00101101); //nopump
-    pump(3, NOPUMP);
+    lcd.print(F("     "));
+    dopump(2, DONOTPUMP);
+  }
+
+
+  lcd.setCursor (14, 2);   
+  if((checkpump(pump[3].start, pump[3].duration)==1) || (digitalRead(BTNPUMP3_PINOUTPUT) == HIGH))
+  {
+        lcd.print("^^^^^");
+        dopump(3, DOPUMP);
+  }
+  else
+  {     
+    lcd.print(F("     "));
+    dopump(3, DONOTPUMP);
+  }
+
+  //choosing which value to change
+  if( (digitalRead(BTNSET_PINOUTPUT) == HIGH)){
+    WaitLast = millis();
+    curpos_loc++;
+    if(curpos_loc > curpos_loc_max){ 
+      curpos_loc = 0; 
+    }
+  }
+
+  if(curpos_loc == curpos_loc_max){
+    lcd.noCursor();
+  }
+  else {  
+    lcd.cursor();
+  }
+
+  //changing particular value if in set mode
+  if(curpos_loc < curpos_loc_max){
+    if( (digitalRead(BTNADJ_PINOUTPUT) == HIGH)){  
+      WaitLast = millis();
+
+      //hours and minutes only for starttime
+      if(curpos_xy[curpos_loc].timestep == H){
+        cas(pump[curpos_xy[curpos_loc].pump].start, &a.hours, &a.mins, &a.secs);
+        if(a.hours==23){ 
+          pump[curpos_xy[curpos_loc].pump].start -= 23*H;
+        } 
+        else {
+          pump[curpos_xy[curpos_loc].pump].start += H;
+        }
+      }
+
+      //hours and minutes only for starttime
+      if(curpos_xy[curpos_loc].timestep == M){
+        cas(pump[curpos_xy[curpos_loc].pump].start, &a.hours, &a.mins, &a.secs);
+        if(a.mins==59){ 
+          pump[curpos_xy[curpos_loc].pump].start -= 59*M;
+        } 
+        else {
+          pump[curpos_xy[curpos_loc].pump].start += M;
+        }
+      }
+
+      //seconds only for duration
+      if(curpos_xy[curpos_loc].timestep == S){
+        cas(pump[curpos_xy[curpos_loc].pump].duration, &a.hours, &a.mins, &a.secs);
+        if(a.secs==59){ 
+          pump[curpos_xy[curpos_loc].pump].duration -= 59*S;
+        } 
+        else {
+          pump[curpos_xy[curpos_loc].pump].duration += S;
+        }
+      }
+
+      EEPROMWritelong(pump[1].EEPROMloc_start, pump[1].start); 
+      EEPROMWritelong(pump[1].EEPROMloc_duration, pump[1].duration); 
+      EEPROMWritelong(pump[2].EEPROMloc_start, pump[2].start); 
+      EEPROMWritelong(pump[2].EEPROMloc_duration, pump[2].duration); 
+      EEPROMWritelong(pump[3].EEPROMloc_start, pump[3].start); 
+      EEPROMWritelong(pump[3].EEPROMloc_duration, pump[3].duration); 
+
+    }
+  }
+
+
+
+  lcd.setCursor(curpos_xy[curpos_loc].x,curpos_xy[curpos_loc].y);
+
+  if((millis()) > (WaitLast + WaitPeriod))
+  {
+    //no iput from user, cancel setting mode
+    curpos_loc = curpos_loc_max;  
   }
 
 
@@ -280,7 +406,51 @@ void loop()
   }
 
   delay(100);
+
+
+  //lcd.setCursor (18, 3);   
+  //lcd.print(curpos_loc); 
+  //lcd.print(" ");
 }
+
+
+
+
+long EEPROMReadlong(int address) {
+  long four = EEPROM.read(address);
+  long three = EEPROM.read(address + 1);
+  long two = EEPROM.read(address + 2);
+  long one = EEPROM.read(address + 3);
+
+  return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
+}
+
+void EEPROMWritelong(int address, long value) {
+  byte four = (value & 0xFF);
+  byte three = ((value >> 8) & 0xFF);
+  byte two = ((value >> 16) & 0xFF);
+  byte one = ((value >> 24) & 0xFF);
+
+  //avoid overwriting with the same values
+  if(EEPROMReadlong(address) != value)
+  {
+    EEPROM.write(address, four);
+    EEPROM.write(address + 1, three);
+    EEPROM.write(address + 2, two);
+    EEPROM.write(address + 3, one);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
