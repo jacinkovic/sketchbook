@@ -396,8 +396,6 @@ void checkEth(void) {
     client.print(tempRoom);
     client.print(F(" "));
     client.print(humidRoom);
-    client.print(F(" "));
-    client.print((millis() / 1000));
 
     client.stop();
     EtherQueryLast = millis();
@@ -447,8 +445,3 @@ void read_sensors(void)
   Serial.println();
 #endif
 }
-
-
-
-
-
