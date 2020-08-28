@@ -9,13 +9,13 @@ const int medzera = 500;
 void setup() {
   pinMode(13, OUTPUT);
 
+  Serial.begin(115200);
   //wdt_enable(WDTO_8S);
   //wdt_reset();
 
 }
 
 void loop() {
-
   while (1) {
     znak(K);
     znak(K);
@@ -26,10 +26,12 @@ void loop() {
     znak(K);
     znak(K);
     znak(K);
+    delay(2000);
   }
 }
 
 void znak(int dlzka) {
+  Serial.println(millis());
   digitalWrite(13, HIGH);   // set the LED on
   delay(dlzka);              // wait for a second
   digitalWrite(13, LOW);    // set the LED off
